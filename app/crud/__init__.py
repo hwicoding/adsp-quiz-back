@@ -1,4 +1,9 @@
-from app.crud.exam import create_exam_record, get_exam_records_by_session
+from app.crud.exam import (
+    create_exam_record,
+    get_exam_records_by_session,
+    get_exam_record_by_session_and_quiz,
+    update_exam_record_answer,
+)
 from app.crud.quiz import (
     create_quiz,
     get_quiz_by_hash,
@@ -15,4 +20,6 @@ __all__ = [
     "get_subject_by_id",
     "create_exam_record",
     "get_exam_records_by_session",
+    "get_exam_record_by_session_and_quiz",
+    "update_exam_record_answer",
 ]

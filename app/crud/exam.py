@@ -43,3 +43,31 @@ async def get_exam_records_by_session(
     stmt = select(ExamRecord).where(ExamRecord.exam_session_id == exam_session_id)
     result = await session.execute(stmt)
     return result.scalars().all()
+
+
+async def get_exam_record_by_session_and_quiz(
+    session: AsyncSession,
+    exam_session_id: str,
+    quiz_id: int,
+) -> ExamRecord | None:
+    """시험 세션 ID와 문제 ID로 기록 조회"""
+    stmt = select(ExamRecord).where(
+        ExamRecord.exam_session_id == exam_session_id,
+        ExamRecord.quiz_id == quiz_id,
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def update_exam_record_answer(
+    session: AsyncSession,
+    record: ExamRecord,
+    user_answer: int,
+    is_correct: bool,
+) -> ExamRecord:
+    """시험 기록 답안 업데이트"""
+    record.user_answer = user_answer
+    record.is_correct = is_correct
+    await session.commit()
+    await session.refresh(record)
+    return record
