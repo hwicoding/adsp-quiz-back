@@ -65,6 +65,18 @@ jobs:
             
             # 4. 환경변수 업데이트 (GitHub Secrets에서)
             echo "환경변수 업데이트..."
+            
+            # BOM 제거 (UTF-8 BOM이 있으면 제거)
+            if [ -f "$ENV_FILE" ]; then
+              # Python을 사용하여 BOM 제거 (heredoc 중첩 방지를 위해 인라인 명령어 사용)
+              if command -v python3 &> /dev/null; then
+                python3 -c "import sys; content = open('$ENV_FILE', 'rb').read(); open('$ENV_FILE', 'wb').write(content[3:]) if content.startswith(b'\xef\xbb\xbf') else None" 2>/dev/null || true
+              else
+                # sed를 사용하여 BOM 제거 (대안)
+                sed -i '1s/^\xEF\xBB\xBF//' "$ENV_FILE" 2>/dev/null || true
+              fi
+            fi
+            
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
             DB_USER="${{ secrets.DB_USER }}"
             DB_PASSWORD="${{ secrets.DB_PASSWORD }}"

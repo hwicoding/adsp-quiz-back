@@ -34,6 +34,23 @@ fi
 
 echo -e "${GREEN}✅ 환경변수 파일 확인 완료${NC}"
 
+# BOM 제거 (UTF-8 BOM이 있으면 제거)
+if [ -f "$ENV_FILE" ]; then
+    # BOM 제거 (sed를 사용하여 첫 3바이트가 EF BB BF인 경우 제거)
+    sed -i '1s/^\xEF\xBB\xBF//' "$ENV_FILE" 2>/dev/null || true
+    # 또는 Python을 사용하여 BOM 제거 (더 안전)
+    if command -v python3 &> /dev/null; then
+        python3 -c "
+import sys
+with open('$ENV_FILE', 'rb') as f:
+    content = f.read()
+if content.startswith(b'\xef\xbb\xbf'):
+    with open('$ENV_FILE', 'wb') as f:
+        f.write(content[3:])
+" 2>/dev/null || true
+    fi
+fi
+
 # 2. 필수 환경변수 확인
 echo -e "\n${YELLOW}[2/5] 필수 환경변수 확인${NC}"
 source "$ENV_FILE"
