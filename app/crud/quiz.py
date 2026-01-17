@@ -76,3 +76,9 @@ async def get_subject_by_id(session: AsyncSession, subject_id: int) -> Subject |
     """ID로 과목 조회"""
     result = await session.execute(select(Subject).where(Subject.id == subject_id))
     return result.scalar_one_or_none()
+
+
+async def get_all_subjects(session: AsyncSession) -> Sequence[Subject]:
+    """모든 과목 조회"""
+    result = await session.execute(select(Subject).order_by(Subject.id))
+    return result.scalars().all()

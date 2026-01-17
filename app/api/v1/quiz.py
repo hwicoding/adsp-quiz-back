@@ -9,6 +9,16 @@ from app.services import ai_service, youtube_service
 router = APIRouter(prefix="/quiz", tags=["quiz"])
 
 
+@router.get("/subjects", response_model=quiz_schema.SubjectListResponse)
+async def get_subjects(
+    db: AsyncSession = Depends(get_db),
+):
+    """과목 목록 조회 API"""
+    subjects = await quiz_crud.get_all_subjects(db)
+    subject_responses = [quiz_schema.SubjectResponse.model_validate(s) for s in subjects]
+    return quiz_schema.SubjectListResponse(subjects=subject_responses, total=len(subject_responses))
+
+
 @router.post("/generate", response_model=quiz_schema.QuizResponse, status_code=status.HTTP_201_CREATED)
 async def generate_quiz(
     request: quiz_schema.QuizCreateRequest,

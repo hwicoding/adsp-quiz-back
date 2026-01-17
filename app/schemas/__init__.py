@@ -12,6 +12,8 @@ from app.schemas.quiz import (
     QuizListResponse,
     QuizOptionResponse,
     QuizResponse,
+    SubjectListResponse,
+    SubjectResponse,
 )
 
 __all__ = [
@@ -23,6 +25,8 @@ __all__ = [
     "QuizListResponse",
     "ExamRecordResponse",
     "ExamResponse",
+    "SubjectResponse",
+    "SubjectListResponse",
     "AIQuizGenerationRequest",
     "AIQuizGenerationResponse",
     "AIQuizOption",

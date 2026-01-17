@@ -142,3 +142,35 @@ async def test_get_quiz_not_found(client, test_db_session):
     response = client.get("/api/v1/quiz/999")
     
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_subjects(client, test_db_session):
+    """과목 목록 조회"""
+    subject1 = Subject(id=1, name="ADsP", description="데이터 분석 준전문가")
+    subject2 = Subject(id=2, name="SQLD", description="SQL 개발자")
+    test_db_session.add(subject1)
+    test_db_session.add(subject2)
+    await test_db_session.commit()
+    
+    response = client.get("/api/v1/quiz/subjects")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    assert len(data["subjects"]) == 2
+    assert data["subjects"][0]["id"] == 1
+    assert data["subjects"][0]["name"] == "ADsP"
+    assert data["subjects"][1]["id"] == 2
+    assert data["subjects"][1]["name"] == "SQLD"
+
+
+@pytest.mark.asyncio
+async def test_get_subjects_empty(client, test_db_session):
+    """과목 목록 조회 (과목 없음)"""
+    response = client.get("/api/v1/quiz/subjects")
+    
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 0
+    assert len(data["subjects"]) == 0
