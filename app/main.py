@@ -34,13 +34,34 @@ app.include_router(exam.router, prefix="/api/v1")
 app.include_router(subjects.router, prefix="/api/v1")
 
 
+def create_cors_response(
+    status_code: int,
+    content: dict,
+    request: Request,
+) -> JSONResponse:
+    """CORS 헤더를 포함한 JSONResponse 생성"""
+    response = JSONResponse(
+        status_code=status_code,
+        content=content,
+    )
+    # CORS 헤더 명시적 추가 (예외 핸들러에서도 CORS 헤더 보장)
+    origin = request.headers.get("origin")
+    if origin and origin in settings.allowed_origins_list:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """요청 검증 오류 핸들러"""
     logger.warning(f"요청 검증 오류: {exc.errors()}, path={request.url.path}")
-    return JSONResponse(
+    return create_cors_response(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": exc.errors()},
+        request=request,
     )
 
 
@@ -57,14 +78,16 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError):
     )
     
     if settings.environment == "production":
-        return JSONResponse(
+        return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "Database error occurred"},
+            request=request,
         )
     else:
-        return JSONResponse(
+        return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": str(exc)},
+            request=request,
         )
 
 
@@ -83,17 +106,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     
     # 프로덕션 환경에서는 상세 에러 메시지 숨김
     if settings.environment == "production":
-        return JSONResponse(
+        return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": "Internal Server Error"},
+            request=request,
         )
     else:
-        return JSONResponse(
+        return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "detail": str(exc),
                 "type": exc.__class__.__name__,
             },
+            request=request,
         )
 
 
