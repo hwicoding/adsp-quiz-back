@@ -102,9 +102,23 @@ jobs:
               docker-compose --env-file "$ENV_FILE" build --no-cache
               docker-compose --env-file "$ENV_FILE" up -d
               
-              # 마이그레이션 실행
-              sleep 5
-              docker-compose --env-file "$ENV_FILE" exec -T app alembic upgrade head || true
+              # 컨테이너 시작 대기
+              sleep 10
+              
+              # 마이그레이션 파일 확인 (임시 조치 - Dockerfile 수정 후 제거 가능)
+              if ! docker-compose --env-file "$ENV_FILE" exec -T app test -d /app/migrations/versions 2>/dev/null; then
+                echo "⚠️  마이그레이션 디렉토리가 없습니다. 확인이 필요합니다."
+                docker-compose --env-file "$ENV_FILE" exec -T app ls -la /app/ || true
+                docker-compose --env-file "$ENV_FILE" exec -T app ls -la /app/migrations/ 2>/dev/null || echo "migrations 디렉토리가 없습니다."
+              fi
+              
+              # 마이그레이션 실행 (실패 시 배포 실패)
+              if ! docker-compose --env-file "$ENV_FILE" exec -T app alembic upgrade head; then
+                echo "❌ 마이그레이션 실패"
+                echo "마이그레이션 로그:"
+                docker-compose --env-file "$ENV_FILE" logs app | tail -20
+                exit 1
+              fi
             fi
             
             # 6. 헬스체크
