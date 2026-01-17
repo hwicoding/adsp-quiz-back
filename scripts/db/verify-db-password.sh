@@ -31,18 +31,21 @@ if ! docker-compose --env-file "$ENV_FILE" ps postgres 2>/dev/null | grep -q "Up
 fi
 
 # .env 파일에서 데이터베이스 정보 추출
-DB_USER_FROM_ENV=$(grep "^DB_USER=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "")
-DB_PASSWORD_FROM_ENV=$(grep "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "")
-DB_NAME=$(grep "^DATABASE_URL=" "$ENV_FILE" | sed -n 's/.*\/\([^?]*\).*/\1/p' | head -1)
-if [ -z "$DB_NAME" ]; then
-    DB_NAME="adsp_quiz_db"
-fi
-
-if [ -z "$DB_USER_FROM_ENV" ] || [ -z "$DB_PASSWORD_FROM_ENV" ]; then
-    echo -e "${RED}❌ .env 파일에서 DB_USER 또는 DB_PASSWORD를 찾을 수 없습니다.${NC}"
-    echo "환경변수 파일 내용 확인:"
-    grep -E "(DB_USER|DB_PASSWORD|DATABASE_URL)" "$ENV_FILE" | sed 's/\(PASSWORD=\).*/\1***/g' || echo "관련 환경변수가 없습니다."
-    exit 1
+if [ -f "${PROJECT_DIR}/scripts/db/extract-db-info.sh" ]; then
+    chmod +x "${PROJECT_DIR}/scripts/db/extract-db-info.sh"
+    eval $("${PROJECT_DIR}/scripts/db/extract-db-info.sh")
+    DB_USER_FROM_ENV="$DB_USER"
+    DB_PASSWORD_FROM_ENV="$DB_PASSWORD"
+else
+    DB_USER_FROM_ENV=$(grep "^DB_USER=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "")
+    DB_PASSWORD_FROM_ENV=$(grep "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "")
+    DB_NAME=$(grep "^DATABASE_URL=" "$ENV_FILE" | sed -n 's/.*\/\([^?]*\).*/\1/p' | head -1)
+    DB_NAME="${DB_NAME:-adsp_quiz_db}"
+    
+    if [ -z "$DB_USER_FROM_ENV" ] || [ -z "$DB_PASSWORD_FROM_ENV" ]; then
+        echo -e "${RED}❌ .env 파일에서 DB_USER 또는 DB_PASSWORD를 찾을 수 없습니다.${NC}"
+        exit 1
+    fi
 fi
 
 echo "데이터베이스 연결 정보:"
@@ -82,38 +85,31 @@ else
     echo -e "${YELLOW}⚠️  PostgreSQL 컨테이너에서 비밀번호를 확인할 수 없습니다. 연결 테스트로 검증합니다.${NC}"
 fi
 
-# PostgreSQL 연결 테스트 (psql 사용)
-echo "PostgreSQL 연결 테스트 중..."
-MAX_CONNECTION_RETRIES=3
-CONNECTION_RETRY_DELAY=2
-
-for i in $(seq 1 $MAX_CONNECTION_RETRIES); do
-    if docker-compose --env-file "$ENV_FILE" exec -T postgres psql -U "$DB_USER_FROM_ENV" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
+# PostgreSQL 연결 테스트
+if [ -f "${PROJECT_DIR}/scripts/db/test-db-connection.sh" ]; then
+    chmod +x "${PROJECT_DIR}/scripts/db/test-db-connection.sh"
+    if "${PROJECT_DIR}/scripts/db/test-db-connection.sh" "$DB_USER_FROM_ENV" "$DB_NAME" 3 2; then
         echo -e "${GREEN}✅ 데이터베이스 연결 성공 (비밀번호 인증 통과)${NC}"
         exit 0
     else
-        if [ $i -eq $MAX_CONNECTION_RETRIES ]; then
-            echo -e "${RED}❌ 데이터베이스 연결 실패 (비밀번호 인증 실패)${NC}"
-            echo ""
-            echo "🔍 상세 진단:"
-            echo "  1. PostgreSQL 컨테이너 상태:"
-            docker-compose --env-file "$ENV_FILE" ps postgres || echo "컨테이너 상태 확인 실패"
-            echo ""
-            echo "  2. .env 파일의 데이터베이스 설정:"
-            grep -E "(DATABASE_URL|DB_USER|DB_PASSWORD)" "$ENV_FILE" | sed 's/\(PASSWORD=\).*/\1***/g' || echo "환경변수 확인 실패"
-            echo ""
-            echo "  3. PostgreSQL 컨테이너 환경변수:"
-            docker-compose --env-file "$ENV_FILE" exec -T postgres env 2>/dev/null | grep -E "(POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB)" | sed 's/\(PASSWORD=\).*/\1***/g' || echo "컨테이너 환경변수 확인 실패"
-            echo ""
-            echo "🔧 조치 방법:"
-            echo "  - GitHub Secrets의 DB_PASSWORD와 서버 PostgreSQL 컨테이너의 비밀번호가 일치하는지 확인"
-            echo "  - 서버의 .env 파일의 DB_PASSWORD와 DATABASE_URL 내 비밀번호가 일치하는지 확인"
-            echo "  - PostgreSQL 컨테이너 재생성 또는 비밀번호 동기화 필요"
-            echo ""
-            exit 1
-        else
-            echo -e "${YELLOW}⚠️  연결 실패 (시도 $i/$MAX_CONNECTION_RETRIES), 재시도 중...${NC}"
-            sleep $CONNECTION_RETRY_DELAY
-        fi
+        echo -e "${RED}❌ 데이터베이스 연결 실패 (비밀번호 인증 실패)${NC}"
+        echo "🔧 조치 방법: GitHub Secrets의 DB_PASSWORD와 서버 PostgreSQL 컨테이너의 비밀번호가 일치하는지 확인"
+        exit 1
     fi
-done
+else
+    MAX_CONNECTION_RETRIES=3
+    CONNECTION_RETRY_DELAY=2
+    for i in $(seq 1 $MAX_CONNECTION_RETRIES); do
+        if docker-compose --env-file "$ENV_FILE" exec -T postgres psql -U "$DB_USER_FROM_ENV" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
+            echo -e "${GREEN}✅ 데이터베이스 연결 성공 (비밀번호 인증 통과)${NC}"
+            exit 0
+        else
+            if [ $i -eq $MAX_CONNECTION_RETRIES ]; then
+                echo -e "${RED}❌ 데이터베이스 연결 실패 (비밀번호 인증 실패)${NC}"
+                exit 1
+            else
+                sleep $CONNECTION_RETRY_DELAY
+            fi
+        fi
+    done
+fi

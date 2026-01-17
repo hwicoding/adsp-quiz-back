@@ -40,220 +40,74 @@ jobs:
             ENV_FILE="${PROJECT_DIR}/env/.env"
             
             echo "=== GitHub Actions 배포 시작 ==="
-            
-            # 1. 프로젝트 디렉토리로 이동
             cd "$PROJECT_DIR"
             
-            # 2. 최신 코드 가져오기
-            echo "최신 코드 가져오기..."
-            git fetch origin
-            git reset --hard origin/main
-            # data/postgres/ 디렉토리를 제외하고 정리 (데이터 보호)
-            git clean -fd --exclude='data/postgres' || true
+            # 환경변수 설정
+            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            export DB_USER="${{ secrets.DB_USER }}"
+            export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+            export GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY || '' }}"
+            export SECRET_KEY="${{ secrets.SECRET_KEY }}"
+            export ALLOWED_ORIGINS="${{ secrets.ALLOWED_ORIGINS }}"
+            export ENV_FILE PROJECT_DIR
             
-            # 3. 환경변수 파일 확인 (없으면 생성)
-            if [ ! -f "$ENV_FILE" ]; then
-              echo "환경변수 파일이 없습니다. 템플릿에서 생성합니다..."
-              if [ -f "${PROJECT_DIR}/env/.env.template" ]; then
-                cp "${PROJECT_DIR}/env/.env.template" "$ENV_FILE"
-                chmod 600 "$ENV_FILE"
-              else
-                echo "템플릿 파일이 없습니다. 수동으로 생성해야 합니다."
-                exit 1
-              fi
-            fi
-            
-            # 4. 환경변수 업데이트 (GitHub Secrets에서)
-            echo "환경변수 업데이트..."
-            
-            # BOM 제거 (UTF-8 BOM이 있으면 제거)
-            if [ -f "$ENV_FILE" ]; then
-              # Python을 사용하여 BOM 제거 (heredoc 중첩 방지를 위해 인라인 명령어 사용)
-              if command -v python3 &> /dev/null; then
-                python3 -c "import sys; content = open('$ENV_FILE', 'rb').read(); open('$ENV_FILE', 'wb').write(content[3:]) if content.startswith(b'\xef\xbb\xbf') else None" 2>/dev/null || true
-              else
-                # sed를 사용하여 BOM 제거 (대안)
-                sed -i '1s/^\xEF\xBB\xBF//' "$ENV_FILE" 2>/dev/null || true
-              fi
-            fi
-            
-            # 환경변수 값을 변수에 저장 및 export
-            DATABASE_URL="${{ secrets.DATABASE_URL }}"
-            DB_USER="${{ secrets.DB_USER }}"
-            DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
-            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY || '' }}"
-            SECRET_KEY="${{ secrets.SECRET_KEY }}"
-            ALLOWED_ORIGINS="${{ secrets.ALLOWED_ORIGINS }}"
-            
-            export DATABASE_URL DB_USER DB_PASSWORD GEMINI_API_KEY SECRET_KEY ALLOWED_ORIGINS
-            export ENV_FILE
-            
-            # Python 스크립트를 사용하여 환경변수 파일 업데이트 (특수 문자 처리 안전)
-            # heredoc 중첩 방지를 위해 Python 원라이너 사용 (walrus operator로 반복문 처리)
-            python3 -c "import re, os, sys; sys.stdout.reconfigure(encoding='utf-8') if sys.stdout.encoding != 'utf-8' else None; f = os.environ['ENV_FILE']; c = open(f, 'r', encoding='utf-8').read(); vars_list = [('DATABASE_URL', os.environ['DATABASE_URL']), ('DB_USER', os.environ['DB_USER']), ('DB_PASSWORD', os.environ['DB_PASSWORD']), ('GEMINI_API_KEY', os.environ.get('GEMINI_API_KEY', '')), ('SECRET_KEY', os.environ['SECRET_KEY']), ('ALLOWED_ORIGINS', os.environ['ALLOWED_ORIGINS']), ('ENVIRONMENT', 'production'), ('PORT', '8001')]; [c := (re.sub(rf'^{re.escape(n)}=.*$', f'{n}={v}', c, flags=re.MULTILINE) if re.search(rf'^{re.escape(n)}=.*$', c, re.MULTILINE) else (c + ('\n' if c and not c.endswith('\n') else '') + f'{n}={v}\n')) for n, v in vars_list]; open(f, 'w', encoding='utf-8', newline='\n').write(c); print('✅ 환경변수 업데이트 완료')"
-            
-            # 환경변수 업데이트 후 검증
-            echo "환경변수 업데이트 검증 중..."
-            if [ ! -f "$ENV_FILE" ]; then
-              echo "❌ 환경변수 파일이 없습니다: $ENV_FILE"
-              exit 1
-            fi
-            
-            # DATABASE_URL 형식 검증 (사용자명과 비밀번호 포함 여부 확인)
-            source "$ENV_FILE"
-            if [ -z "$DATABASE_URL" ]; then
-              echo "❌ DATABASE_URL이 설정되지 않았습니다."
-              exit 1
-            fi
-            
-            # DATABASE_URL 형식 검증: postgresql:// 또는 postgresql+asyncpg://로 시작하고 @ 기호가 포함되어야 함
-            if ! echo "$DATABASE_URL" | grep -qE '^postgresql(\+asyncpg)?://[^@]+@'; then
-              echo "❌ DATABASE_URL 형식이 올바르지 않습니다."
-              echo "현재 DATABASE_URL: ${DATABASE_URL:0:50}..."
-              echo "올바른 형식: postgresql+asyncpg://user:password@host:port/dbname"
-              exit 1
-            fi
-            
-            # DB_USER와 DB_PASSWORD가 비어있지 않은지 확인
-            if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
-              echo "❌ DB_USER 또는 DB_PASSWORD가 설정되지 않았습니다."
-              exit 1
-            fi
-            
-            echo "✅ 환경변수 검증 완료"
-            echo "DATABASE_URL 형식 확인: ${DATABASE_URL%%@*}@***"
-            
-            # 4-1. 데이터베이스 비밀번호 검증 (환경변수 업데이트 후)
-            echo "=== 데이터베이스 비밀번호 검증 ==="
-            if [ -f "${PROJECT_DIR}/scripts/verify-db-password.sh" ]; then
-              echo "✅ 비밀번호 검증 스크립트 발견: ${PROJECT_DIR}/scripts/verify-db-password.sh"
-              chmod +x "${PROJECT_DIR}/scripts/verify-db-password.sh"
-              
-              if ! "${PROJECT_DIR}/scripts/verify-db-password.sh"; then
-                echo "❌ 데이터베이스 비밀번호 검증 실패"
-                exit 1
-              fi
-              
-              echo "✅ 데이터베이스 비밀번호 검증 완료"
+            # 1. Git 코드 동기화
+            if [ -f "${PROJECT_DIR}/scripts/utils/git-sync.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/utils/git-sync.sh"
+              "${PROJECT_DIR}/scripts/utils/git-sync.sh"
             else
-              echo "⚠️  비밀번호 검증 스크립트가 없습니다. 수동 검증을 진행합니다..."
-              
-              # PostgreSQL 컨테이너가 실행 중인지 확인
-              if ! docker-compose --env-file "$ENV_FILE" ps postgres 2>/dev/null | grep -q "Up"; then
-                echo "⚠️  PostgreSQL 컨테이너가 실행 중이 아닙니다. 시작합니다..."
-                docker-compose --env-file "$ENV_FILE" up -d postgres
-                echo "PostgreSQL 컨테이너 시작 대기 중..."
-                sleep 5
-              fi
-              
-              # .env 파일에서 데이터베이스 정보 추출
-              DB_USER_FROM_ENV=$(grep "^DB_USER=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "")
-              DB_PASSWORD_FROM_ENV=$(grep "^DB_PASSWORD=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" || echo "")
-              DB_NAME=$(grep "^DATABASE_URL=" "$ENV_FILE" | sed -n 's/.*\/\([^?]*\).*/\1/p' | head -1)
-              if [ -z "$DB_NAME" ]; then
-                DB_NAME="adsp_quiz_db"
-              fi
-              
-              if [ -z "$DB_USER_FROM_ENV" ] || [ -z "$DB_PASSWORD_FROM_ENV" ]; then
-                echo "❌ .env 파일에서 DB_USER 또는 DB_PASSWORD를 찾을 수 없습니다."
-                exit 1
-              fi
-              
-              # PostgreSQL 연결 테스트
-              echo "PostgreSQL 연결 테스트 중..."
-              MAX_CONNECTION_RETRIES=3
-              CONNECTION_RETRY_DELAY=2
-              
-              for i in $(seq 1 $MAX_CONNECTION_RETRIES); do
-                if docker-compose --env-file "$ENV_FILE" exec -T postgres psql -U "$DB_USER_FROM_ENV" -d "$DB_NAME" -c "SELECT 1;" > /dev/null 2>&1; then
-                  echo "✅ 데이터베이스 연결 성공 (비밀번호 인증 통과)"
-                  break
-                else
-                  if [ $i -eq $MAX_CONNECTION_RETRIES ]; then
-                    echo "❌ 데이터베이스 연결 실패 (비밀번호 인증 실패)"
-                    echo "🔧 조치 방법: GitHub Secrets의 DB_PASSWORD와 서버 PostgreSQL 컨테이너의 비밀번호가 일치하는지 확인"
-                    exit 1
-                  else
-                    echo "⚠️  연결 실패 (시도 $i/$MAX_CONNECTION_RETRIES), 재시도 중..."
-                    sleep $CONNECTION_RETRY_DELAY
-                  fi
-                fi
-              done
+              git fetch origin && git reset --hard origin/main && git clean -fd --exclude='data/postgres' || true
             fi
             
-            # 5. 배포 스크립트 실행
-            echo "=== 배포 스크립트 확인 ==="
-            if [ -f "${PROJECT_DIR}/scripts/deploy.sh" ]; then
-              echo "✅ 배포 스크립트 발견: ${PROJECT_DIR}/scripts/deploy.sh"
-              echo "배포 스크립트 실행 중..."
-              chmod +x "${PROJECT_DIR}/scripts/deploy.sh"
-              
-              if ! "${PROJECT_DIR}/scripts/deploy.sh"; then
-                echo "❌ 배포 스크립트 실행 실패"
-                exit 1
-              fi
-              
-              echo "✅ 배포 스크립트 실행 완료"
+            # 2. 환경변수 파일 확인
+            if [ -f "${PROJECT_DIR}/scripts/env/ensure-env-file.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/env/ensure-env-file.sh"
+              "${PROJECT_DIR}/scripts/env/ensure-env-file.sh"
             else
-              echo "⚠️  배포 스크립트가 없습니다. 수동 배포를 진행합니다..."
-              echo "수동 배포 시작..."
-              
-              # 수동 배포
+              [ ! -f "$ENV_FILE" ] && [ -f "${PROJECT_DIR}/env/.env.template" ] && cp "${PROJECT_DIR}/env/.env.template" "$ENV_FILE" && chmod 600 "$ENV_FILE" || true
+            fi
+            
+            # 3. BOM 제거
+            if [ -f "${PROJECT_DIR}/scripts/utils/remove-bom.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/utils/remove-bom.sh"
+              "${PROJECT_DIR}/scripts/utils/remove-bom.sh" "$ENV_FILE"
+            fi
+            
+            # 4. 환경변수 업데이트
+            if [ -f "${PROJECT_DIR}/scripts/env/update-env.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/env/update-env.sh"
+              "${PROJECT_DIR}/scripts/env/update-env.sh"
+            fi
+            
+            # 5. 환경변수 검증
+            if [ -f "${PROJECT_DIR}/scripts/env/verify-env.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/env/verify-env.sh"
+              "${PROJECT_DIR}/scripts/env/verify-env.sh"
+            fi
+            
+            # 6. 데이터베이스 비밀번호 검증
+            if [ -f "${PROJECT_DIR}/scripts/db/verify-db-password.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/db/verify-db-password.sh"
+              "${PROJECT_DIR}/scripts/db/verify-db-password.sh" || exit 1
+            fi
+            
+            # 7. 배포 스크립트 실행
+            if [ -f "${PROJECT_DIR}/scripts/deploy/deploy.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/deploy/deploy.sh"
+              "${PROJECT_DIR}/scripts/deploy/deploy.sh" || exit 1
+            else
               docker-compose --env-file "$ENV_FILE" down || true
               docker-compose --env-file "$ENV_FILE" build --no-cache
               docker-compose --env-file "$ENV_FILE" up -d
-              
-              # 컨테이너 시작 대기
               sleep 10
-              
-              # 마이그레이션 파일 확인 (임시 조치 - Dockerfile 수정 후 제거 가능)
-              if ! docker-compose --env-file "$ENV_FILE" exec -T app test -d /app/migrations/versions 2>/dev/null; then
-                echo "⚠️  마이그레이션 디렉토리가 없습니다. 확인이 필요합니다."
-                docker-compose --env-file "$ENV_FILE" exec -T app ls -la /app/ || true
-                docker-compose --env-file "$ENV_FILE" exec -T app ls -la /app/migrations/ 2>/dev/null || echo "migrations 디렉토리가 없습니다."
-              fi
-              
-              # 마이그레이션 실행 (실패 시 배포 실패)
-              if ! docker-compose --env-file "$ENV_FILE" exec -T app alembic upgrade head; then
-                echo "❌ 마이그레이션 실패"
-                echo "마이그레이션 로그:"
-                docker-compose --env-file "$ENV_FILE" logs app | tail -20
-                exit 1
-              fi
-              
-              echo "✅ 수동 배포 완료"
+              docker-compose --env-file "$ENV_FILE" exec -T app alembic upgrade head || exit 1
             fi
             
-            # 6. 헬스체크
-            echo "=== 헬스체크 시작 ==="
-            HEALTH_CHECK_URL="https://adsp-api.livbee.co.kr/health"
-            MAX_RETRIES=5
-            RETRY_DELAY=10
-            
-            for i in $(seq 1 $MAX_RETRIES); do
-              echo "헬스체크 시도 $i/$MAX_RETRIES..."
-              sleep $RETRY_DELAY
-              
-              HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_CHECK_URL" || echo "000")
-              echo "헬스체크 응답: HTTP $HEALTH_RESPONSE"
-              
-              if [ "$HEALTH_RESPONSE" = "200" ]; then
-                echo "✅ 배포 성공! 헬스체크 통과 (HTTP $HEALTH_RESPONSE)"
-                break
-              else
-                if [ $i -eq $MAX_RETRIES ]; then
-                  echo "❌ 헬스체크 실패 (최대 재시도 횟수 도달)"
-                  echo "최종 응답 코드: HTTP $HEALTH_RESPONSE"
-                  echo "애플리케이션 로그:"
-                  docker-compose --env-file "$ENV_FILE" logs app | tail -50
-                  echo "컨테이너 상태:"
-                  docker-compose --env-file "$ENV_FILE" ps
-                  exit 1
-                else
-                  echo "⚠️  헬스체크 실패 (HTTP $HEALTH_RESPONSE), 재시도 중..."
-                fi
-              fi
-            done
+            # 8. 헬스체크
+            if [ -f "${PROJECT_DIR}/scripts/utils/health-check.sh" ]; then
+              chmod +x "${PROJECT_DIR}/scripts/utils/health-check.sh"
+              "${PROJECT_DIR}/scripts/utils/health-check.sh" "https://adsp-api.livbee.co.kr/health" 5 10 "$ENV_FILE" || exit 1
+            fi
             
             echo "=== 배포 완료 ==="
           ENDSSH
