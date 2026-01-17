@@ -19,7 +19,7 @@ async def get_subjects(
     """과목 목록 조회 API (프론트엔드 요청 형식)"""
     try:
         subjects_data = await quiz_crud.get_all_subjects_with_quiz_count(db)
-        return [quiz_schema.SubjectResponse(**subject) for subject in subjects_data]
+        return [quiz_schema.SubjectResponse.model_validate(subject) for subject in subjects_data]
     except Exception as e:
         logger.error(
             f"과목 목록 조회 실패: {e.__class__.__name__}",
