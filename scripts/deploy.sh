@@ -98,12 +98,20 @@ if [[ "$DATABASE_URL" == *"localhost"* ]]; then
     export DATABASE_URL="$DATABASE_URL_DOCKER"
     echo -e "${GREEN}✅ DATABASE_URL 업데이트 완료: ${DATABASE_URL//:*:*/***}${NC}"
     
-    # 실행 중인 컨테이너가 있으면 중지하고 제거한 후 재생성하여 새로운 환경변수 적용
+    # 실행 중인 컨테이너가 있으면 완전히 제거한 후 재생성하여 새로운 환경변수 적용
     if docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up"; then
-        echo -e "${YELLOW}⚠️  실행 중인 app 컨테이너를 중지하고 재생성하여 새로운 DATABASE_URL을 적용합니다...${NC}"
-        docker-compose --env-file "$ENV_FILE" stop app || true
-        docker-compose --env-file "$ENV_FILE" rm -f app || true
-        docker-compose --env-file "$ENV_FILE" up -d --no-deps app
+        echo -e "${YELLOW}⚠️  실행 중인 app 컨테이너를 완전히 제거하고 재생성하여 새로운 DATABASE_URL을 적용합니다...${NC}"
+        # docker-compose 명령어 대신 docker 명령어로 직접 제거 (ContainerConfig 오류 방지)
+        docker stop adsp-quiz-backend 2>/dev/null || true
+        docker rm -f adsp-quiz-backend 2>/dev/null || true
+        # 컨테이너 이름으로 검색하여 모든 관련 컨테이너 제거
+        docker ps -a --filter "name=adsp-quiz-backend" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+        # 컨테이너를 완전히 제거한 후 up 실행 (ContainerConfig 오류 방지)
+        docker-compose --env-file "$ENV_FILE" up -d --no-deps app 2>&1 || {
+            echo "컨테이너 시작 실패, 재시도..."
+            sleep 2
+            docker-compose --env-file "$ENV_FILE" up -d --no-deps app
+        }
         sleep 5
     fi
 fi
@@ -135,8 +143,25 @@ fi
 # app 컨테이너가 없으면 임시로 빌드 및 시작 (마이그레이션 실행용)
 if ! docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up"; then
     echo -e "${YELLOW}⚠️  app 컨테이너가 없습니다. 마이그레이션을 위해 임시로 시작합니다...${NC}"
+    
+    # 기존 컨테이너가 있으면 완전히 제거 (ContainerConfig 오류 방지)
+    if docker ps -a --format '{{.Names}}' | grep -q "^adsp-quiz-backend$"; then
+        echo "기존 컨테이너 제거 중..."
+        docker stop adsp-quiz-backend 2>/dev/null || true
+        docker rm -f adsp-quiz-backend 2>/dev/null || true
+    fi
+    
     docker-compose --env-file "$ENV_FILE" build app
-    docker-compose --env-file "$ENV_FILE" up -d app
+    
+    # docker-compose up 대신 docker run을 사용하여 ContainerConfig 오류 방지
+    # 또는 컨테이너를 완전히 제거한 후 up 실행
+    docker-compose --env-file "$ENV_FILE" up -d --no-deps --force-recreate app 2>&1 || {
+        # force-recreate가 실패하면 컨테이너를 직접 제거 후 재시도
+        echo "컨테이너 재생성 실패, 직접 제거 후 재시도..."
+        docker stop adsp-quiz-backend 2>/dev/null || true
+        docker rm -f adsp-quiz-backend 2>/dev/null || true
+        docker-compose --env-file "$ENV_FILE" up -d --no-deps app
+    }
     
     # app 컨테이너가 준비될 때까지 대기 (최대 20초)
     echo "app 컨테이너 준비 대기 중..."
