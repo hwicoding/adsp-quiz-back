@@ -98,10 +98,12 @@ if [[ "$DATABASE_URL" == *"localhost"* ]]; then
     export DATABASE_URL="$DATABASE_URL_DOCKER"
     echo -e "${GREEN}✅ DATABASE_URL 업데이트 완료: ${DATABASE_URL//:*:*/***}${NC}"
     
-    # 실행 중인 컨테이너가 있으면 재생성하여 새로운 환경변수 적용
+    # 실행 중인 컨테이너가 있으면 중지하고 제거한 후 재생성하여 새로운 환경변수 적용
     if docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up"; then
-        echo -e "${YELLOW}⚠️  실행 중인 app 컨테이너를 재생성하여 새로운 DATABASE_URL을 적용합니다...${NC}"
-        docker-compose --env-file "$ENV_FILE" up -d --force-recreate --no-deps app
+        echo -e "${YELLOW}⚠️  실행 중인 app 컨테이너를 중지하고 재생성하여 새로운 DATABASE_URL을 적용합니다...${NC}"
+        docker-compose --env-file "$ENV_FILE" stop app || true
+        docker-compose --env-file "$ENV_FILE" rm -f app || true
+        docker-compose --env-file "$ENV_FILE" up -d --no-deps app
         sleep 5
     fi
 fi
