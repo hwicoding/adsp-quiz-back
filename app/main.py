@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 
-from app.api.v1 import exam, quiz
+from app.api.v1 import exam, quiz, subjects
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.models.base import get_engine
@@ -31,6 +31,7 @@ app.add_middleware(
 
 app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(exam.router, prefix="/api/v1")
+app.include_router(subjects.router, prefix="/api/v1")
 
 
 @app.exception_handler(RequestValidationError)
