@@ -174,3 +174,78 @@ async def test_get_subjects_empty(client, test_db_session):
     data = response.json()
     assert data["total"] == 0
     assert len(data["subjects"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_generate_quiz_frontend_format(client, test_db_session):
+    """프론트엔드 형식(camelCase)으로 문제 생성"""
+    subject = Subject(id=1, name="ADsP", description="데이터 분석 준전문가")
+    test_db_session.add(subject)
+    await test_db_session.commit()
+    
+    with patch("app.services.youtube_service.extract_video_id", return_value="test_video_id"):
+        with patch("app.services.youtube_service.extract_transcript", new_callable=AsyncMock, return_value="테스트 자막"):
+            with patch("app.services.youtube_service.generate_hash", return_value="test_hash"):
+                with patch("app.services.ai_service.generate_quiz", new_callable=AsyncMock) as mock_ai:
+                    from app.schemas.ai import AIQuizGenerationResponse, AIQuizOption
+                    mock_ai.return_value = AIQuizGenerationResponse(
+                        question="테스트 문제",
+                        options=[
+                            AIQuizOption(index=0, text="선택지1"),
+                            AIQuizOption(index=1, text="선택지2"),
+                            AIQuizOption(index=2, text="선택지3"),
+                            AIQuizOption(index=3, text="선택지4"),
+                        ],
+                        correct_answer=0,
+                        explanation="설명",
+                    )
+                    
+                    # 프론트엔드 형식: source (camelCase), content (camelCase)
+                    response = client.post(
+                        "/api/v1/quiz/generate",
+                        json={
+                            "source": "youtube",
+                            "content": "https://youtube.com/watch?v=test",
+                        },
+                    )
+                    
+                    assert response.status_code == 201
+                    data = response.json()
+                    assert "id" in data
+                    assert data["question"] == "테스트 문제"
+
+
+@pytest.mark.asyncio
+async def test_generate_quiz_without_subject_id(client, test_db_session):
+    """subject_id 없이 문제 생성 (기본 과목 사용)"""
+    subject = Subject(id=1, name="ADsP", description="데이터 분석 준전문가")
+    test_db_session.add(subject)
+    await test_db_session.commit()
+    
+    with patch("app.services.youtube_service.generate_hash", return_value="test_hash"):
+        with patch("app.services.ai_service.generate_quiz", new_callable=AsyncMock) as mock_ai:
+            from app.schemas.ai import AIQuizGenerationResponse, AIQuizOption
+            mock_ai.return_value = AIQuizGenerationResponse(
+                question="테스트 문제",
+                options=[
+                    AIQuizOption(index=0, text="선택지1"),
+                    AIQuizOption(index=1, text="선택지2"),
+                    AIQuizOption(index=2, text="선택지3"),
+                    AIQuizOption(index=3, text="선택지4"),
+                ],
+                correct_answer=0,
+                explanation="설명",
+            )
+            
+            # subject_id 없이 요청 (기본 과목 id=1 사용)
+            response = client.post(
+                "/api/v1/quiz/generate",
+                json={
+                    "source": "text",
+                    "content": "테스트 텍스트",
+                },
+            )
+            
+            assert response.status_code == 201
+            data = response.json()
+            assert data["subject_id"] == 1  # 기본 과목 사용

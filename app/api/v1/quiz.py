@@ -24,12 +24,14 @@ async def generate_quiz(
     request: quiz_schema.QuizCreateRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """문제 생성 API"""
-    subject = await quiz_crud.get_subject_by_id(db, request.subject_id)
+    """문제 생성 API (프론트엔드 호환: camelCase 필드명 지원, subject_id 선택 필드)"""
+    # subject_id가 None이면 기본 과목(id=1, ADsP) 사용
+    subject_id = request.subject_id or 1
+    subject = await quiz_crud.get_subject_by_id(db, subject_id)
     if not subject:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"과목을 찾을 수 없습니다: {request.subject_id}",
+            detail=f"과목을 찾을 수 없습니다: {subject_id}",
         )
 
     source_text = None
@@ -66,7 +68,7 @@ async def generate_quiz(
 
     new_quiz = await quiz_crud.create_quiz(
         db,
-        subject_id=request.subject_id,
+        subject_id=subject_id,
         ai_response=ai_response,
         source_hash=source_hash,
         source_url=source_url,
