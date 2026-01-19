@@ -9,13 +9,19 @@ ENV_FILE="${ENV_FILE:-${PROJECT_DIR}/env/.env}"
 
 cd "$PROJECT_DIR" || exit 1
 
-echo "기존 애플리케이션 컨테이너 중지 중..."
-docker-compose --env-file "$ENV_FILE" stop app || true
+echo "기존 서비스 중지 및 컨테이너 제거 중..."
+# docker-compose down으로 먼저 정리
+docker-compose --env-file "$ENV_FILE" down || true
 
+# 모든 관련 컨테이너 완전 제거 (ContainerConfig 오류 방지)
 if [ -f "${PROJECT_DIR}/scripts/utils/remove-containers.sh" ]; then
     chmod +x "${PROJECT_DIR}/scripts/utils/remove-containers.sh"
     "${PROJECT_DIR}/scripts/utils/remove-containers.sh" "adsp-quiz-backend"
+    "${PROJECT_DIR}/scripts/utils/remove-containers.sh" "adsp-quiz-postgres"
 fi
+
+# 네트워크 정리 (선택적)
+docker network prune -f 2>/dev/null || true
 
 echo "Docker 이미지 빌드 중..."
 docker-compose --env-file "$ENV_FILE" build --no-cache
