@@ -90,6 +90,12 @@ class QuizCreateRequest(BaseModel):
         return v
 
 
+class StudyModeQuizCreateRequest(BaseModel):
+    """학습 모드 문제 생성 요청 스키마 (10개 일괄 생성)"""
+    sub_topic_id: int = Field(..., description="세부항목 ID (필수)")
+    quiz_count: int = Field(default=10, ge=1, le=50, description="생성할 문제 개수 (기본값: 10, 최대: 50)")
+
+
 class ExamStartRequest(BaseModel):
     """시험 시작 요청 스키마"""
     subject_id: int = Field(..., description="과목 ID")
