@@ -15,14 +15,19 @@ echo "마이그레이션 실행 준비 중..."
 
 if ! docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up"; then
     echo "애플리케이션 컨테이너가 실행 중이 아닙니다. 컨테이너를 시작합니다..."
-    if [ -f "${PROJECT_DIR}/scripts/utils/remove-containers.sh" ]; then
-        chmod +x "${PROJECT_DIR}/scripts/utils/remove-containers.sh"
-        "${PROJECT_DIR}/scripts/utils/remove-containers.sh" "adsp-quiz-backend"
+    if [ -f "${PROJECT_DIR}/scripts/deploy/build-app.sh" ]; then
+        chmod +x "${PROJECT_DIR}/scripts/deploy/build-app.sh"
+        "${PROJECT_DIR}/scripts/deploy/build-app.sh" || exit 1
+    else
+        if [ -f "${PROJECT_DIR}/scripts/utils/remove-containers.sh" ]; then
+            chmod +x "${PROJECT_DIR}/scripts/utils/remove-containers.sh"
+            "${PROJECT_DIR}/scripts/utils/remove-containers.sh" "adsp-quiz-backend"
+        fi
+        docker-compose --env-file "$ENV_FILE" build app
+        docker-compose --env-file "$ENV_FILE" up -d --no-deps app
+        echo "컨테이너 시작 대기 중..."
+        sleep 5
     fi
-    docker-compose --env-file "$ENV_FILE" build app
-    docker-compose --env-file "$ENV_FILE" up -d --no-deps app
-    echo "컨테이너 시작 대기 중..."
-    sleep 5
 fi
 
 echo "마이그레이션 실행 중..."

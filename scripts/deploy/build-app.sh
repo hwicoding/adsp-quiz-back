@@ -24,7 +24,8 @@ fi
 docker network prune -f 2>/dev/null || true
 
 echo "Docker 이미지 빌드 중..."
-docker-compose --env-file "$ENV_FILE" build --no-cache
+# 캐시 사용하여 빌드 (첫 빌드가 아니면 캐시 활용)
+docker-compose --env-file "$ENV_FILE" build
 
 echo "애플리케이션 컨테이너 시작 중..."
 docker-compose --env-file "$ENV_FILE" up -d

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import quiz as quiz_crud
+from app.exceptions import GeminiServiceUnavailableError
 from app.models.base import get_db
 from app.schemas import ai, quiz as quiz_schema
 from app.services import ai_service, youtube_service
@@ -64,7 +65,15 @@ async def generate_quiz(
         source_text=source_text,
         subject_name=subject.name,
     )
-    ai_response = await ai_service.generate_quiz(ai_request)
+    
+    try:
+        ai_response = await ai_service.generate_quiz(ai_request)
+    except GeminiServiceUnavailableError as e:
+        # Gemini API 일시적 과부하 에러는 503으로 반환
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        )
 
     new_quiz = await quiz_crud.create_quiz(
         db,

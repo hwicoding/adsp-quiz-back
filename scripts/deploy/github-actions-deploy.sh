@@ -86,7 +86,7 @@ if [ -f "${PROJECT_DIR}/scripts/deploy/deploy.sh" ]; then
 else
     echo "⚠️  배포 스크립트를 찾을 수 없습니다. 기본 배포 프로세스를 실행합니다."
     docker-compose --env-file "$ENV_FILE" down || true
-    docker-compose --env-file "$ENV_FILE" build --no-cache
+    docker-compose --env-file "$ENV_FILE" build
     docker-compose --env-file "$ENV_FILE" up -d
     sleep 10
     docker-compose --env-file "$ENV_FILE" exec -T app alembic upgrade head || exit 1
