@@ -8,10 +8,12 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 async def extract_transcript(video_id: str) -> str:
     """YouTube 동영상 자막 추출"""
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        api = YouTubeTranscriptApi()
+        transcript_list = api.list(video_id)
         transcript = transcript_list.find_transcript(["ko", "en"])
         transcript_data = transcript.fetch()
-        return " ".join([item["text"] for item in transcript_data])
+        raw_data = transcript_data.to_raw_data()
+        return " ".join([item["text"] for item in raw_data])
     except (TranscriptsDisabled, NoTranscriptFound) as e:
         raise ValueError(f"자막을 찾을 수 없습니다: {str(e)}")
 
