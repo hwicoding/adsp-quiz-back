@@ -30,10 +30,44 @@ if ! docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up";
     fi
 fi
 
+# 컨테이너가 안정적으로 실행 중일 때까지 대기
+echo "컨테이너 안정화 대기 중..."
+MAX_WAIT=30
+WAIT_COUNT=0
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    CONTAINER_ID=$(docker-compose --env-file "$ENV_FILE" ps -q app 2>/dev/null || echo "")
+    if [ -n "$CONTAINER_ID" ]; then
+        CONTAINER_STATUS=$(docker inspect --format='{{.State.Status}}' "$CONTAINER_ID" 2>/dev/null || echo "")
+        if [ "$CONTAINER_STATUS" = "running" ]; then
+            # 재시작 중이 아닌지 확인
+            RESTARTING=$(docker inspect --format='{{.State.Restarting}}' "$CONTAINER_ID" 2>/dev/null || echo "false")
+            if [ "$RESTARTING" = "false" ]; then
+                echo "✅ 컨테이너가 안정적으로 실행 중입니다"
+                break
+            fi
+        fi
+    fi
+    echo "컨테이너 대기 중... ($WAIT_COUNT/$MAX_WAIT)"
+    sleep 2
+    WAIT_COUNT=$((WAIT_COUNT + 2))
+done
+
+if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+    echo "❌ 컨테이너가 안정화되지 않았습니다"
+    echo "컨테이너 상태:"
+    docker-compose --env-file "$ENV_FILE" ps app
+    echo ""
+    echo "컨테이너 로그:"
+    docker-compose --env-file "$ENV_FILE" logs --tail=50 app
+    exit 1
+fi
+
 echo "마이그레이션 실행 중..."
 if docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app alembic upgrade head; then
     echo "✅ 마이그레이션 완료"
 else
     echo "❌ 마이그레이션 실패"
+    echo "컨테이너 로그:"
+    docker-compose --env-file "$ENV_FILE" logs --tail=50 app
     exit 1
 fi

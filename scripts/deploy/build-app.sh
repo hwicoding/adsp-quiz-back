@@ -33,11 +33,37 @@ docker-compose --env-file "$ENV_FILE" up -d
 echo "컨테이너 시작 대기 중..."
 sleep 3
 
-if docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up"; then
-    echo "✅ 애플리케이션 컨테이너 실행 중"
-else
-    echo "❌ 애플리케이션 컨테이너 시작 실패"
+# 컨테이너가 안정적으로 실행 중인지 확인 (재시작 중이 아닌지)
+MAX_WAIT=30
+WAIT_COUNT=0
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    CONTAINER_STATUS=$(docker-compose --env-file "$ENV_FILE" ps app 2>/dev/null | grep "adsp-quiz-backend" | awk '{print $4}' || echo "")
+    
+    if [ "$CONTAINER_STATUS" = "Up" ] || [ "$CONTAINER_STATUS" = "Up (healthy)" ]; then
+        # 재시작 중이 아닌지 추가 확인
+        RESTART_COUNT=$(docker inspect --format='{{.RestartCount}}' "$(docker-compose --env-file "$ENV_FILE" ps -q app)" 2>/dev/null || echo "0")
+        if [ "$RESTART_COUNT" = "0" ] || docker inspect --format='{{.State.Status}}' "$(docker-compose --env-file "$ENV_FILE" ps -q app)" 2>/dev/null | grep -q "running"; then
+            echo "✅ 애플리케이션 컨테이너 실행 중"
+            break
+        fi
+    fi
+    
+    if echo "$CONTAINER_STATUS" | grep -q "Restarting"; then
+        echo "⚠️  컨테이너가 재시작 중입니다. 대기 중... ($WAIT_COUNT/$MAX_WAIT)"
+        sleep 2
+        WAIT_COUNT=$((WAIT_COUNT + 2))
+    else
+        sleep 1
+        WAIT_COUNT=$((WAIT_COUNT + 1))
+    fi
+done
+
+if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+    echo "❌ 애플리케이션 컨테이너 시작 실패 (타임아웃)"
+    echo "컨테이너 상태:"
+    docker-compose --env-file "$ENV_FILE" ps app
+    echo ""
     echo "컨테이너 로그:"
-    docker-compose --env-file "$ENV_FILE" logs app
+    docker-compose --env-file "$ENV_FILE" logs --tail=50 app
     exit 1
 fi
