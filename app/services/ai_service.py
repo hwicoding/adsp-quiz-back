@@ -14,7 +14,7 @@ def get_gemini_client() -> genai.GenerativeModel:
     if _gemini_client is None:
         genai.configure(api_key=settings.gemini_api_key)
         _gemini_client = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-1.5-flash-latest",
             generation_config={
                 "temperature": 0.7,
                 "response_mime_type": "application/json",
