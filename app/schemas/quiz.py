@@ -124,19 +124,35 @@ class QuizResponse(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def parse_options(cls, data: dict) -> dict:
-        """DB의 JSON 문자열 options를 리스트로 변환"""
+    def parse_options(cls, data):
+        """DB의 JSON 문자열 options를 리스트로 변환 (SQLAlchemy 모델 객체 및 딕셔너리 모두 처리)"""
+        # SQLAlchemy 모델 객체인 경우 딕셔너리로 변환
+        if not isinstance(data, dict):
+            # SQLAlchemy 모델 객체의 속성을 딕셔너리로 변환
+            data = {
+                "id": getattr(data, "id", None),
+                "subject_id": getattr(data, "subject_id", None),
+                "question": getattr(data, "question", None),
+                "options": getattr(data, "options", None),
+                "correct_answer": getattr(data, "correct_answer", None),
+                "explanation": getattr(data, "explanation", None),
+                "source_url": getattr(data, "source_url", None),
+                "created_at": getattr(data, "created_at", None),
+            }
+        
+        # options 필드가 문자열(JSON)인 경우 리스트로 변환
         if isinstance(data, dict) and "options" in data:
             options_str = data.get("options")
             if isinstance(options_str, str):
                 try:
                     options_list = json.loads(options_str)
                     data["options"] = [
-                        QuizOptionResponse(**opt) if isinstance(opt, dict) else opt
+                        QuizOptionResponse.model_validate(opt) if isinstance(opt, dict) else opt
                         for opt in options_list
                     ]
                 except (json.JSONDecodeError, TypeError):
                     data["options"] = []
+        
         return data
 
 
