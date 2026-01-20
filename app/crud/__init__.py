@@ -10,13 +10,15 @@ from app.crud.main_topic import (
 )
 from app.crud.quiz import (
     create_quiz,
-    get_all_subjects,
-    get_all_subjects_with_quiz_count,
     get_quiz_by_hash,
     get_quiz_by_id,
     get_quiz_count_by_sub_topic_id,
     get_quizzes_by_sub_topic_id,
     get_random_quizzes,
+)
+from app.crud.subject import (
+    get_all_subjects,
+    get_all_subjects_with_quiz_count,
     get_subject_by_id,
 )
 from app.crud.sub_topic import (

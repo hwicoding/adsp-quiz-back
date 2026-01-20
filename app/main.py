@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -9,6 +9,7 @@ from sqlalchemy import text
 from app.api.v1 import exam, main_topics, quiz, subjects, sub_topics
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.exceptions import BaseAppError
 from app.models.base import get_engine
 
 # 로깅 설정
@@ -91,6 +92,24 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError):
             content={"detail": str(exc)},
             request=request,
         )
+
+
+@app.exception_handler(BaseAppError)
+async def app_exception_handler(request: Request, exc: BaseAppError):
+    """애플리케이션 커스텀 예외 핸들러"""
+    logger.warning(
+        f"Application error: {exc.__class__.__name__} - {exc.message}",
+        extra={
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": exc.status_code,
+        }
+    )
+    return create_cors_response(
+        status_code=exc.status_code,
+        content={"detail": exc.message},
+        request=request,
+    )
 
 
 @app.exception_handler(Exception)

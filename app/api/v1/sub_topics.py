@@ -5,13 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud import main_topic as main_topic_crud, sub_topic as sub_topic_crud
 from app.models.base import get_db
-from app.schemas import quiz as quiz_schema
+from app.schemas import sub_topic as sub_topic_schema
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/main-topics", tags=["main-topics"])
 
 
-@router.get("/{main_topic_id}/sub-topics", response_model=quiz_schema.SubTopicListResponse)
+@router.get("/{main_topic_id}/sub-topics", response_model=sub_topic_schema.SubTopicListResponse)
 async def get_sub_topics(
     main_topic_id: int,
     db: AsyncSession = Depends(get_db),
@@ -27,19 +27,19 @@ async def get_sub_topics(
     
     sub_topics = await sub_topic_crud.get_sub_topics_by_main_topic_id(db, main_topic_id)
     sub_topic_responses = [
-        quiz_schema.SubTopicResponse.model_validate(st) for st in sub_topics
+        sub_topic_schema.SubTopicResponse.model_validate(st) for st in sub_topics
     ]
-    return quiz_schema.SubTopicListResponse(
+    return sub_topic_schema.SubTopicListResponse(
         sub_topics=sub_topic_responses,
         total=len(sub_topic_responses)
     )
 
 
-@router.put("/{main_topic_id}/sub-topics/{sub_topic_id}/core-content", response_model=quiz_schema.SubTopicCoreContentResponse)
+@router.put("/{main_topic_id}/sub-topics/{sub_topic_id}/core-content", response_model=sub_topic_schema.SubTopicCoreContentResponse)
 async def update_sub_topic_core_content(
     main_topic_id: int,
     sub_topic_id: int,
-    request: quiz_schema.SubTopicCoreContentUpdateRequest,
+    request: sub_topic_schema.SubTopicCoreContentUpdateRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """세부항목 핵심 정보 업데이트 API (관리자용)"""
@@ -81,4 +81,4 @@ async def update_sub_topic_core_content(
     
     logger.info(f"세부항목 핵심 정보 업데이트: sub_topic_id={sub_topic_id}")
     
-    return quiz_schema.SubTopicCoreContentResponse.model_validate(updated_sub_topic)
+    return sub_topic_schema.SubTopicCoreContentResponse.model_validate(updated_sub_topic)
