@@ -46,7 +46,9 @@ jobs:
           ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -p ${SERVER_PORT} ${SERVER_USER}@${SERVER_HOST} 'bash -s' < ./scripts/deploy/ssh/remote-deploy.sh
       - name: Deployment status
         if: success()
-        run: echo "✅ 배포 완료: https://adsp-api.livbee.co.kr"
+        run: |
+          echo '✅ 배포 완료: https://adsp-api.livbee.co.kr'
       - name: Deployment failed
         if: failure()
-        run: echo "❌ 배포 실패: 서버 로그 확인 필요"
+        run: |
+          echo '❌ 배포 실패: 서버 로그 확인 필요'
