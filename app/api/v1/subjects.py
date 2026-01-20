@@ -16,7 +16,7 @@ router = APIRouter(prefix="/subjects", tags=["subjects"])
 async def get_subjects(
     db: AsyncSession = Depends(get_db),
 ):
-    """과목 목록 조회 API (프론트엔드 요청 형식)"""
+    """과목 목록 조회 API (ADsP 전용, 하위 호환성 유지)"""
     try:
         subjects_data = await subject_crud.get_all_subjects_with_quiz_count(db)
         return [subject_schema.SubjectResponse.model_validate(subject) for subject in subjects_data]

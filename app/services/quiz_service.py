@@ -21,9 +21,11 @@ async def generate_quiz(
     session: AsyncSession,
     request: quiz_schema.QuizCreateRequest,
 ) -> quiz_schema.QuizResponse:
-    """단일 문제 생성"""
-    # subject_id가 None이면 기본 과목(id=1, ADsP) 사용
+    """단일 문제 생성 (ADsP 전용)"""
+    # ADsP 전용 구조: subject_id는 항상 1
     subject_id = request.subject_id or 1
+    if subject_id != 1:
+        raise SubjectNotFoundError(subject_id)
     subject = await subject_crud.get_subject_by_id(session, subject_id)
     if not subject:
         raise SubjectNotFoundError(subject_id)
@@ -74,7 +76,7 @@ async def generate_study_quizzes(
     session: AsyncSession,
     request: quiz_schema.StudyModeQuizCreateRequest,
 ) -> quiz_schema.StudyModeQuizListResponse:
-    """학습 모드 문제 생성 (10개 일괄 생성, 캐싱 지원)"""
+    """학습 모드 문제 생성 (10개 일괄 생성, 캐싱 지원, ADsP 전용)"""
     # 세부항목 존재 확인
     sub_topic = await sub_topic_crud.get_sub_topic_with_core_content(session, request.sub_topic_id)
     if not sub_topic:
@@ -114,7 +116,8 @@ async def generate_study_quizzes(
     
     # 새 문제 생성
     new_quizzes = []
-    subject_id = sub_topic.main_topic.subject_id
+    # ADsP 전용 구조: subject_id는 항상 1
+    subject_id = 1
     
     for i in range(needed_count):
         try:
@@ -201,7 +204,7 @@ async def get_next_study_quiz(
     sub_topic_id: int,
     exclude_quiz_ids: list[int] | None = None,
 ) -> quiz_schema.QuizResponse:
-    """학습 모드 다음 문제 요청 (점진적 생성, 1개씩, 이미 본 문제 제외)"""
+    """학습 모드 다음 문제 요청 (점진적 생성, 1개씩, 이미 본 문제 제외, ADsP 전용)"""
     # 세부항목 존재 확인
     sub_topic = await sub_topic_crud.get_sub_topic_with_core_content(session, sub_topic_id)
     if not sub_topic:
@@ -281,7 +284,8 @@ async def get_next_study_quiz(
         f"새 문제 생성: sub_topic_id={sub_topic_id} (토큰 1개 사용)"
     )
     
-    subject_id = sub_topic.main_topic.subject_id
+    # ADsP 전용 구조: subject_id는 항상 1
+    subject_id = 1
     
     try:
         # 핵심 정보를 기반으로 문제 생성

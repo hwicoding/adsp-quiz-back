@@ -20,18 +20,23 @@ async def start_exam(
     session: AsyncSession,
     request: exam_schema.ExamStartRequest,
 ) -> quiz_schema.QuizListResponse:
-    """시험 시작"""
+    """시험 시작 (ADsP 전용)"""
+    # ADsP 전용 구조: subject_id는 항상 1
+    subject_id = request.subject_id or 1
+    if subject_id != 1:
+        raise SubjectNotFoundError(subject_id)
+    
     try:
-        subject = await subject_crud.get_subject_by_id(session, request.subject_id)
+        subject = await subject_crud.get_subject_by_id(session, subject_id)
         if not subject:
-            raise SubjectNotFoundError(request.subject_id)
+            raise SubjectNotFoundError(subject_id)
 
-        quizzes = await quiz_crud.get_random_quizzes(session, request.subject_id, request.quiz_count)
+        quizzes = await quiz_crud.get_random_quizzes(session, subject_id, request.quiz_count)
         
         if len(quizzes) < request.quiz_count:
             logger.warning(
                 f"문제 개수 부족: 요청={request.quiz_count}, 실제={len(quizzes)}, "
-                f"subject_id={request.subject_id}"
+                f"subject_id={subject_id}"
             )
             raise InvalidQuizRequestError(
                 f"요청한 문제 개수({request.quiz_count})보다 적은 문제가 있습니다. 현재: {len(quizzes)}개"
@@ -129,9 +134,10 @@ async def get_exam_result(
     if not quiz:
         raise QuizNotFoundError(first_record.quiz_id)
 
+    # ADsP 전용 구조: subject_id는 항상 1
     return exam_schema.ExamResponse(
         exam_session_id=exam_session_id,
-        subject_id=quiz.subject_id,
+        subject_id=1,
         total_questions=len(records),
         correct_count=correct_count,
         incorrect_count=incorrect_count,

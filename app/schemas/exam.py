@@ -6,8 +6,8 @@ from app.schemas.quiz import QuizResponse  # 순환 참조 방지를 위해 여�
 
 
 class ExamStartRequest(BaseModel):
-    """시험 시작 요청 스키마"""
-    subject_id: int = Field(..., description="과목 ID")
+    """시험 시작 요청 스키마 (ADsP 전용, subject_id는 선택 필드)"""
+    subject_id: int | None = Field(None, description="과목 ID (None일 때 ADsP 사용)")
     quiz_count: int = Field(..., ge=1, le=50, description="문제 개수 (1-50)")
 
 

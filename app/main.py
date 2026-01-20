@@ -84,13 +84,19 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError):
     if settings.environment == "production":
         return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Database error occurred"},
+            content={
+                "code": "DB_ERROR",
+                "detail": "Database error occurred",
+            },
             request=request,
         )
     else:
         return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": str(exc)},
+            content={
+                "code": "DB_ERROR",
+                "detail": str(exc),
+            },
             request=request,
         )
 
@@ -108,7 +114,10 @@ async def app_exception_handler(request: Request, exc: BaseAppError):
     )
     return create_cors_response(
         status_code=exc.status_code,
-        content={"detail": exc.message},
+        content={
+            "code": exc.__class__.__name__,
+            "detail": exc.message,
+        },
         request=request,
     )
 
@@ -130,15 +139,18 @@ async def global_exception_handler(request: Request, exc: Exception):
     if settings.environment == "production":
         return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Internal Server Error"},
+            content={
+                "code": "INTERNAL_SERVER_ERROR",
+                "detail": "Internal Server Error",
+            },
             request=request,
         )
     else:
         return create_cors_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
+                "code": exc.__class__.__name__,
                 "detail": str(exc),
-                "type": exc.__class__.__name__,
             },
             request=request,
         )

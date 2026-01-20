@@ -6,6 +6,7 @@ from app.crud.exam import (
 )
 from app.crud.main_topic import (
     get_main_topic_by_id,
+    get_all_main_topics,
     get_main_topics_by_subject_id,
 )
 from app.crud.quiz import (
@@ -39,6 +40,7 @@ __all__ = [
     "get_all_subjects",
     "get_all_subjects_with_quiz_count",
     "get_main_topic_by_id",
+    "get_all_main_topics",
     "get_main_topics_by_subject_id",
     "get_sub_topic_by_id",
     "get_sub_topic_with_core_content",

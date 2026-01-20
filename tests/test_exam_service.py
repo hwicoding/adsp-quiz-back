@@ -61,7 +61,7 @@ async def test_start_exam_subject_not_found(mock_db_session):
     
     with patch.object(subject_crud, "get_subject_by_id", return_value=None):
         request = exam_schema.ExamStartRequest(
-            subject_id=999,
+            subject_id=999,  # ADsP가 아닌 경우 에러 발생
             quiz_count=10,
         )
         

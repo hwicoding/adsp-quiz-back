@@ -1,9 +1,12 @@
+import logging
 from typing import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sub_topic import SubTopic
+
+logger = logging.getLogger(__name__)
 
 
 async def get_sub_topic_by_id(session: AsyncSession, sub_topic_id: int) -> SubTopic | None:
@@ -24,7 +27,21 @@ async def get_sub_topics_by_main_topic_id(session: AsyncSession, main_topic_id: 
 
 async def get_sub_topic_with_core_content(session: AsyncSession, sub_topic_id: int) -> SubTopic | None:
     """세부항목 조회 (핵심 정보 포함)"""
-    return await get_sub_topic_by_id(session, sub_topic_id)
+    logger.debug(f"세부항목 조회: sub_topic_id={sub_topic_id}")
+    try:
+        result = await get_sub_topic_by_id(session, sub_topic_id)
+        if result:
+            logger.debug(f"세부항목 조회 성공: sub_topic_id={sub_topic_id}, name={result.name}")
+        else:
+            logger.debug(f"세부항목 조회 결과 없음: sub_topic_id={sub_topic_id}")
+        return result
+    except Exception as e:
+        logger.error(
+            f"세부항목 조회 중 예외: sub_topic_id={sub_topic_id}, "
+            f"error={e.__class__.__name__}: {str(e)}",
+            exc_info=True
+        )
+        raise
 
 
 async def update_sub_topic_core_content(
