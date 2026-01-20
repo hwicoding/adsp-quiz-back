@@ -9,17 +9,20 @@ project_root = Path(__file__).parent.parent.parent
 env_file = project_root / ".env"
 
 # 서버 담당자로부터 받은 .env 내용 (로컬 테스트용으로 호스트명 변경)
+# 주의: 실제 민감 정보는 서버 담당자로부터 별도로 받아서 수동으로 입력해야 함
 env_content = """# Database
 # 로컬 테스트용: 호스트명을 localhost로 변경
-DATABASE_URL=postgresql+asyncpg://adsp_quiz_user:oXRulAw4AwNBP1ERkg3lSOlBg@localhost:5432/adsp_quiz_db
-DB_USER=adsp_quiz_user
-DB_PASSWORD=oXRulAw4AwNBP1ERkg3lSOlBg
+# 실제 값은 서버 담당자로부터 받아서 수동으로 입력 필요
+DATABASE_URL=postgresql+asyncpg://<DB_USER>:<DB_PASSWORD>@localhost:5432/adsp_quiz_db
+DB_USER=<DB_USER>
+DB_PASSWORD=<DB_PASSWORD>
 
 # OpenAI (서버에서 제공된 값, 필요시 업데이트)
-OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_API_KEY=<OPENAI_API_KEY>
 
 # Security
-SECRET_KEY=pzuMFg5YcqJ5PWI96RS1C7VMkNxpi8muI58Vo0xdCsw
+# 실제 값은 서버 담당자로부터 받아서 수동으로 입력 필요
+SECRET_KEY=<SECRET_KEY>
 ALGORITHM=HS256
 
 # CORS
@@ -28,7 +31,8 @@ ALLOWED_ORIGINS=https://adsp.livbee.co.kr,http://localhost:5173
 # Environment
 # 로컬 개발 시 development로 변경하면 상세 에러 메시지 확인 가능
 ENVIRONMENT=development
-GEMINI_API_KEY=AIzaSyBjhEP0nEbAKOWRlt2HDm1FrIE7evXCN-E
+# 실제 값은 서버 담당자로부터 받아서 수동으로 입력 필요
+GEMINI_API_KEY=<GEMINI_API_KEY>
 PORT=8001
 """
 

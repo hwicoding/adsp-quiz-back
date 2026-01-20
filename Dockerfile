@@ -23,7 +23,13 @@ RUN pip install --no-cache-dir -e .
 # 이 부분이 없으면 마이그레이션이 실행되지 않습니다.
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
-COPY migrations/env.py ./migrations/env.py
+# migrations/env.py는 이미 migrations/ 디렉토리에 포함되어 있으므로 별도 복사 불필요
+
+# 마이그레이션 파일 검증 (빌드 시 확인)
+RUN echo "마이그레이션 파일 확인 중..." && \
+    ls -la /app/migrations/versions/ && \
+    echo "마이그레이션 파일 개수: $(ls -1 /app/migrations/versions/*.py | wc -l)" && \
+    echo "✅ 마이그레이션 파일 복사 완료"
 
 # 비root 사용자 생성 및 소유권 변경 (pip 경고 방지)
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
