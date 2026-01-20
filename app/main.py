@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 
-from app.api.v1 import exam, main_topics, quiz, subjects, sub_topics
+from app.api.v1 import core_content, exam, main_topics, quiz, subjects, sub_topics
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.exceptions import BaseAppError
@@ -35,6 +35,7 @@ app.include_router(exam.router, prefix="/api/v1")
 app.include_router(subjects.router, prefix="/api/v1")
 app.include_router(main_topics.router, prefix="/api/v1")
 app.include_router(sub_topics.router, prefix="/api/v1")
+app.include_router(core_content.router, prefix="/api/v1")
 
 
 def create_cors_response(
