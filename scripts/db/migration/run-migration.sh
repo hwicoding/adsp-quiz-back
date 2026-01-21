@@ -43,16 +43,16 @@ echo "마이그레이션 파일 확인 중..."
 docker-compose --env-file "$ENV_FILE" exec -T app ls -la /app/migrations/versions/ || echo "⚠️  마이그레이션 파일 확인 실패"
 
 echo "현재 DB revision 확인 중..."
-docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app alembic current || echo "⚠️  현재 revision 확인 실패 (초기 마이그레이션일 수 있음)"
+docker-compose --env-file "$ENV_FILE" exec -T app alembic current || echo "⚠️  현재 revision 확인 실패 (초기 마이그레이션일 수 있음)"
 
 echo "마이그레이션 히스토리 확인 중..."
-docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app alembic history || echo "⚠️  마이그레이션 히스토리 확인 실패"
+docker-compose --env-file "$ENV_FILE" exec -T app alembic history || echo "⚠️  마이그레이션 히스토리 확인 실패"
 
 echo "마이그레이션 실행 중..."
-if docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app alembic upgrade head; then
+if docker-compose --env-file "$ENV_FILE" exec -T app alembic upgrade head; then
     echo "✅ 마이그레이션 완료"
     echo "업그레이드 후 revision 확인 중..."
-    docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app alembic current || echo "⚠️  revision 확인 실패"
+    docker-compose --env-file "$ENV_FILE" exec -T app alembic current || echo "⚠️  revision 확인 실패"
 else
     echo "❌ 마이그레이션 실패"
     echo "컨테이너 로그:"

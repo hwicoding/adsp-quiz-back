@@ -45,6 +45,12 @@ if [ -f "$ENV_FILE" ]; then
   cp "$ENV_FILE" "${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)" || true
 fi
 
+# DATABASE_URL의 localhost를 postgres로 자동 변환 (Docker Compose 네트워크용)
+if echo "$DATABASE_URL" | grep -q "@localhost\|@127\.0\.0\.1"; then
+  echo "🔄 DATABASE_URL의 localhost를 postgres로 변환 중..."
+  DATABASE_URL=$(echo "$DATABASE_URL" | sed 's/@localhost/@postgres/g' | sed 's/@127\.0\.0\.1/@postgres/g')
+fi
+
 # GitHub Actions에서 받은 환경변수로 .env 파일 생성
 cat > "$ENV_FILE" <<EOF
 # Database
@@ -71,6 +77,13 @@ EOF
 # .env 파일 권한 설정
 chmod 600 "$ENV_FILE" || true
 echo "✅ .env 파일 업데이트 완료"
+
+# 실행 중인 컨테이너가 있으면 재시작하여 새 환경변수 적용
+if docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up"; then
+  echo "🔄 실행 중인 컨테이너 재시작 중 (환경변수 업데이트 반영)..."
+  docker-compose --env-file "$ENV_FILE" restart app || true
+  sleep 3
+fi
 
 # 환경변수 검증
 echo "🔍 환경변수 검증 중..."

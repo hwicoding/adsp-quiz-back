@@ -43,16 +43,15 @@ jobs:
         run: |
           chmod +x ./scripts/deploy/ssh/setup-ssh.sh ./scripts/deploy/ssh/remote-deploy.sh
           ./scripts/deploy/ssh/setup-ssh.sh
-          ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -p ${SERVER_PORT} ${SERVER_USER}@${SERVER_HOST} bash -s <<EOF
-          export DATABASE_URL="${DATABASE_URL}"
-          export DB_USER="${DB_USER}"
-          export DB_PASSWORD="${DB_PASSWORD}"
-          export GEMINI_API_KEY="${GEMINI_API_KEY}"
-          export GEMINI_MAX_CONCURRENT="${GEMINI_MAX_CONCURRENT}"
-          export SECRET_KEY="${SECRET_KEY}"
-          export ALLOWED_ORIGINS="${ALLOWED_ORIGINS}"
-          $(cat ./scripts/deploy/ssh/remote-deploy.sh)
-          EOF
+          ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=~/.ssh/known_hosts -p ${SERVER_PORT} ${SERVER_USER}@${SERVER_HOST} \
+            "DATABASE_URL='${DATABASE_URL}' \
+             DB_USER='${DB_USER}' \
+             DB_PASSWORD='${DB_PASSWORD}' \
+             GEMINI_API_KEY='${GEMINI_API_KEY}' \
+             GEMINI_MAX_CONCURRENT='${GEMINI_MAX_CONCURRENT}' \
+             SECRET_KEY='${SECRET_KEY}' \
+             ALLOWED_ORIGINS='${ALLOWED_ORIGINS}' \
+             bash -s" < ./scripts/deploy/ssh/remote-deploy.sh
       - name: Deployment status
         if: success()
         run: |

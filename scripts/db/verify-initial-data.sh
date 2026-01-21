@@ -19,7 +19,7 @@ if ! docker-compose --env-file "$ENV_FILE" ps | grep -q "adsp-quiz-backend.*Up";
 fi
 
 echo "주요항목 데이터 확인 중..."
-MAIN_TOPICS_COUNT=$(docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app python -c "
+MAIN_TOPICS_COUNT=$(docker-compose --env-file "$ENV_FILE" exec -T app python -c "
 import asyncio
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -44,7 +44,7 @@ fi
 echo "✅ 주요항목 데이터 확인 완료: ${MAIN_TOPICS_COUNT}개"
 
 echo "세부항목 데이터 확인 중..."
-SUB_TOPICS_COUNT=$(docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app python -c "
+SUB_TOPICS_COUNT=$(docker-compose --env-file "$ENV_FILE" exec -T app python -c "
 import asyncio
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -69,7 +69,7 @@ fi
 echo "✅ 세부항목 데이터 확인 완료: ${SUB_TOPICS_COUNT}개"
 
 echo "핵심 세부항목 존재 확인 중..."
-SUB_TOPIC_1=$(docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app python -c "
+SUB_TOPIC_1=$(docker-compose --env-file "$ENV_FILE" exec -T app python -c "
 import asyncio
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -87,7 +87,7 @@ async def check():
 asyncio.run(check())
 " 2>/dev/null || echo "0")
 
-SUB_TOPIC_2=$(docker-compose --env-file "$ENV_FILE" exec -T -e DATABASE_URL="$DATABASE_URL" app python -c "
+SUB_TOPIC_2=$(docker-compose --env-file "$ENV_FILE" exec -T app python -c "
 import asyncio
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
