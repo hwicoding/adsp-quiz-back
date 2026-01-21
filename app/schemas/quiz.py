@@ -1,4 +1,5 @@
 import json
+import random
 from datetime import datetime
 from typing import Literal
 
@@ -123,7 +124,7 @@ class QuizResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def parse_options(cls, data):
-        """DB의 JSON 문자열 options를 리스트로 변환 (SQLAlchemy 모델 객체 및 딕셔너리 모두 처리)"""
+        """DB의 JSON 문자열 options를 리스트로 변환 및 4지선다 제한 (기존 데이터 호환성)"""
         # SQLAlchemy 모델 객체인 경우 딕셔너리로 변환
         if not isinstance(data, dict):
             # SQLAlchemy 모델 객체의 속성을 딕셔너리로 변환
@@ -150,6 +151,43 @@ class QuizResponse(BaseModel):
                     ]
                 except (json.JSONDecodeError, TypeError):
                     data["options"] = []
+        
+        # 4지선다 제한 로직 (기존 데이터 호환성: 7개 선택지 → 4개로 제한)
+        if isinstance(data, dict) and "options" in data and isinstance(data["options"], list):
+            options = data["options"]
+            correct_answer = data.get("correct_answer")
+            
+            # 선택지가 4개보다 많으면 4개로 제한
+            if len(options) > 4:
+                # 정답 선택지 찾기
+                if correct_answer is not None and 0 <= correct_answer < len(options):
+                    correct_option = options[correct_answer]
+                    # 오답 선택지 추출
+                    wrong_options = [opt for i, opt in enumerate(options) if i != correct_answer]
+                    # 오답 중에서 랜덤으로 3개 선택
+                    if len(wrong_options) >= 3:
+                        selected_wrong_options = random.sample(wrong_options, 3)
+                    else:
+                        selected_wrong_options = wrong_options
+                    
+                    # 정답 1개 + 오답 3개 = 4개 구성
+                    new_options = [correct_option] + selected_wrong_options
+                    # 인덱스를 0-3으로 재매핑 (새 객체 생성)
+                    data["options"] = [
+                        QuizOptionResponse(index=i, text=opt.text)
+                        for i, opt in enumerate(new_options)
+                    ]
+                    # correct_answer는 항상 0 (정답이 첫 번째에 위치)
+                    data["correct_answer"] = 0
+                else:
+                    # 정답 인덱스가 유효하지 않으면 처음 4개만 사용
+                    data["options"] = options[:4]
+                    for i, opt in enumerate(data["options"]):
+                        opt.index = i
+                    if correct_answer is not None and correct_answer < 4:
+                        data["correct_answer"] = correct_answer
+                    else:
+                        data["correct_answer"] = 0
         
         return data
 
