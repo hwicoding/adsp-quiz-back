@@ -3,8 +3,10 @@ from typing import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.sub_topic import SubTopic
+from app.models.main_topic import MainTopic
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +28,22 @@ async def get_sub_topics_by_main_topic_id(session: AsyncSession, main_topic_id: 
 
 
 async def get_sub_topic_with_core_content(session: AsyncSession, sub_topic_id: int) -> SubTopic | None:
-    """세부항목 조회 (핵심 정보 포함)"""
+    """세부항목 조회 (핵심 정보 및 관계 포함)"""
     logger.debug(f"세부항목 조회: sub_topic_id={sub_topic_id}")
     try:
-        result = await get_sub_topic_by_id(session, sub_topic_id)
-        if result:
-            logger.debug(f"세부항목 조회 성공: sub_topic_id={sub_topic_id}, name={result.name}")
+        result = await session.execute(
+            select(SubTopic)
+            .where(SubTopic.id == sub_topic_id)
+            .options(
+                joinedload(SubTopic.main_topic).joinedload(MainTopic.subject)
+            )
+        )
+        sub_topic = result.scalar_one_or_none()
+        if sub_topic:
+            logger.debug(f"세부항목 조회 성공: sub_topic_id={sub_topic_id}, name={sub_topic.name}")
         else:
             logger.debug(f"세부항목 조회 결과 없음: sub_topic_id={sub_topic_id}")
-        return result
+        return sub_topic
     except Exception as e:
         logger.error(
             f"세부항목 조회 중 예외: sub_topic_id={sub_topic_id}, "
