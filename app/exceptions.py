@@ -17,6 +17,13 @@ class GeminiServiceUnavailableError(BaseAppError):
         super().__init__(message, status_code=503)
 
 
+class GeminiAPIKeyError(BaseAppError):
+    """Gemini API 키 관련 에러 (403)"""
+    
+    def __init__(self, message: str = "Gemini API 키 문제로 문제 생성에 실패했습니다. 관리자에게 문의하세요."):
+        super().__init__(message, status_code=403)
+
+
 class QuizNotFoundError(BaseAppError):
     """문제를 찾을 수 없을 때 발생하는 예외 (404)"""
     

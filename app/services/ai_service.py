@@ -6,10 +6,10 @@ import random
 
 from google import genai
 from google.genai import types
-from google.genai.errors import ServerError
+from google.genai.errors import ServerError, ClientError
 
 from app.core.config import settings
-from app.exceptions import GeminiServiceUnavailableError
+from app.exceptions import GeminiServiceUnavailableError, GeminiAPIKeyError
 from app.schemas.ai import AIQuizGenerationRequest, AIQuizGenerationResponse
 
 logger = logging.getLogger(__name__)
@@ -123,6 +123,24 @@ async def generate_quiz_with_gemini(request: AIQuizGenerationRequest) -> AIQuizG
                 
                 return AIQuizGenerationResponse(**data)
                 
+            except ClientError as e:
+                # 403 에러 확인 (API 키 문제)
+                error_message = str(e).lower()
+                if "403" in str(e) or "permission_denied" in error_message or "leaked" in error_message:
+                    logger.error(
+                        f"Gemini API 키 문제 감지: status_code=403, "
+                        f"error_type={type(e).__name__}"
+                    )
+                    raise GeminiAPIKeyError(
+                        "Gemini API 키 문제로 문제 생성에 실패했습니다. 관리자에게 문의하세요."
+                    )
+                else:
+                    # 403이 아닌 다른 ClientError는 그대로 전파
+                    logger.error(
+                        f"Gemini API ClientError: status_code={getattr(e, 'status_code', 'unknown')}, "
+                        f"error_type={type(e).__name__}"
+                    )
+                    raise
             except ServerError as e:
                 # 503 에러 확인
                 error_message = str(e)
@@ -156,7 +174,10 @@ async def generate_quiz_with_gemini(request: AIQuizGenerationRequest) -> AIQuizG
                     raise
             except Exception as e:
                 # 다른 예외는 재시도하지 않고 즉시 전파
-                logger.error(f"Gemini API 호출 중 예외 발생: {e.__class__.__name__}: {str(e)}")
+                logger.error(
+                    f"Gemini API 호출 중 예외 발생: error_type={type(e).__name__}, "
+                    f"error_message={str(e)[:200]}"
+                )
                 raise
 
 

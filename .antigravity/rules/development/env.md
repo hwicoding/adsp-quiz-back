@@ -61,3 +61,9 @@
 - 로컬 테스트 시 `DATABASE_URL` 호스트명 변경 필요 (서버: `postgres`, 로컬: `localhost`)
 - `.env` 파일 생성 후 반드시 DB 연결 테스트 수행 (`scripts/test/test-db-query.py`)
 - 민감 정보가 포함된 문서는 `docs/` 폴더에 저장 시 주의 (필요시 마스킹)
+
+## API 키 보안 (절대 필수)
+- **로그에 API 키 절대 출력 금지**: 에러 로깅 시 API 키 값은 마스킹하거나 제외
+- **Git 히스토리 확인**: API 키 유출 의심 시 `git log --all --full-history --source -- "*GEMINI*"` 실행
+- **API 키 교체 절차**: 유출/차단 시 즉시 새 키 발급 → 환경변수 업데이트 → 컨테이너 재시작
+- **에러 핸들링**: API 키 관련 에러(403)는 `GeminiAPIKeyError` 예외로 처리하여 구체적 메시지 제공
