@@ -36,6 +36,66 @@ export SECRET_KEY="${SECRET_KEY}"
 export ALLOWED_ORIGINS="${ALLOWED_ORIGINS}"
 export ENV_FILE PROJECT_DIR
 
+echo "📝 [0.5/8] .env 파일 업데이트 중..."
+# env 디렉토리 생성
+mkdir -p "$(dirname "$ENV_FILE")"
+
+# 기존 .env 파일 백업
+if [ -f "$ENV_FILE" ]; then
+  cp "$ENV_FILE" "${ENV_FILE}.backup.$(date +%Y%m%d_%H%M%S)" || true
+fi
+
+# GitHub Actions에서 받은 환경변수로 .env 파일 생성
+cat > "$ENV_FILE" <<EOF
+# Database
+DATABASE_URL=${DATABASE_URL}
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+
+# Gemini API
+GEMINI_API_KEY=${GEMINI_API_KEY}
+GEMINI_MAX_CONCURRENT=${GEMINI_MAX_CONCURRENT:-2}
+
+# Security
+SECRET_KEY=${SECRET_KEY}
+ALGORITHM=HS256
+
+# CORS
+ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+
+# Environment
+ENVIRONMENT=${ENVIRONMENT:-production}
+PORT=${PORT:-8001}
+EOF
+
+# .env 파일 권한 설정
+chmod 600 "$ENV_FILE" || true
+echo "✅ .env 파일 업데이트 완료"
+
+# 환경변수 검증
+echo "🔍 환경변수 검증 중..."
+if [ -z "$DATABASE_URL" ]; then
+  echo "❌ DATABASE_URL이 설정되지 않았습니다."
+  exit 1
+fi
+
+if ! echo "$DATABASE_URL" | grep -qE '^postgresql(\+asyncpg)?://[^@]+@'; then
+  echo "❌ DATABASE_URL 형식이 올바르지 않습니다: $DATABASE_URL"
+  exit 1
+fi
+
+if [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ]; then
+  echo "❌ DB_USER 또는 DB_PASSWORD가 설정되지 않았습니다."
+  exit 1
+fi
+
+if [ -z "$SECRET_KEY" ]; then
+  echo "❌ SECRET_KEY가 설정되지 않았습니다."
+  exit 1
+fi
+
+echo "✅ 환경변수 검증 완료"
+
 if [ -f "${PROJECT_DIR}/scripts/deploy/github-actions-deploy.sh" ]; then
   chmod +x "${PROJECT_DIR}/scripts/deploy/github-actions-deploy.sh"
   "${PROJECT_DIR}/scripts/deploy/github-actions-deploy.sh" || exit 1
