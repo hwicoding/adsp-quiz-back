@@ -248,6 +248,6 @@ class QuizDashboardResponse(BaseModel):
     """관리자 대시보드 응답 스키마"""
     total_quizzes: int
     quizzes_by_category: dict[str, int] = Field(..., description="카테고리별 문제 개수")
-    validation_status: dict[str, int] = Field(..., description="검증 상태별 개수 (validated, pending, invalid)")
+    validation_status: dict[str, int] = Field(..., description="검증 상태별 개수 (valid, pending, invalid)")
     recent_quizzes: list[QuizResponse] = Field(..., description="최근 생성된 문제 목록")
     quizzes_needing_validation: list[QuizResponse] = Field(..., description="검증이 필요한 문제 목록")

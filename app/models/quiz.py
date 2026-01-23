@@ -24,3 +24,7 @@ class Quiz(Base, TimestampMixin):
         "ExamRecord",
         back_populates="quiz",
     )
+    validations: Mapped[list["QuizValidation"]] = relationship(
+        "QuizValidation",
+        back_populates="quiz",
+    )

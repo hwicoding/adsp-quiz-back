@@ -17,6 +17,12 @@ from app.crud.quiz import (
     get_quizzes_by_sub_topic_id,
     get_random_quizzes,
 )
+from app.crud.quiz_validation import (
+    create_quiz_validation,
+    get_latest_validation,
+    get_quizzes_needing_validation,
+    get_validation_status_counts,
+)
 from app.crud.subject import (
     get_all_subjects,
     get_all_subjects_with_quiz_count,
@@ -50,4 +56,8 @@ __all__ = [
     "get_exam_records_by_session",
     "get_exam_record_by_session_and_quiz",
     "update_exam_record_answer",
+    "create_quiz_validation",
+    "get_latest_validation",
+    "get_quizzes_needing_validation",
+    "get_validation_status_counts",
 ]

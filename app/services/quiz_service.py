@@ -428,6 +428,7 @@ async def validate_quiz(
 ) -> quiz_schema.QuizValidationResponse:
     """문제 검증: Gemini로 생성된 문제가 카테고리에 맞는지 재검증"""
     import json
+    from app.crud import quiz_validation as validation_crud
     
     quiz = await quiz_crud.get_quiz_by_id(session, quiz_id, load_relationships=True)
     if not quiz:
@@ -451,11 +452,26 @@ async def validate_quiz(
             category=category,
         )
         
+        # 검증 결과 저장
+        is_valid = validation_result.get("is_valid", False)
+        validation_status = "valid" if is_valid else "invalid"
+        validation_score = validation_result.get("validation_score", 0.0)
+        validation_score_int = int(validation_score * 100) if validation_score else None
+        
+        await validation_crud.create_quiz_validation(
+            session=session,
+            quiz_id=quiz_id,
+            validation_status=validation_status,
+            validation_score=validation_score_int,
+            feedback=validation_result.get("feedback", ""),
+            issues=validation_result.get("issues", []),
+        )
+        
         return quiz_schema.QuizValidationResponse(
             quiz_id=quiz_id,
-            is_valid=validation_result.get("is_valid", False),
+            is_valid=is_valid,
             category=category,
-            validation_score=validation_result.get("validation_score", 0.0),
+            validation_score=validation_score,
             feedback=validation_result.get("feedback", ""),
             issues=validation_result.get("issues", []),
         )
@@ -543,6 +559,7 @@ async def get_quiz_dashboard(
     from app.models.quiz import Quiz
     from app.models.sub_topic import SubTopic
     from app.models.main_topic import MainTopic
+    from app.crud import quiz_validation as validation_crud
     
     # 전체 문제 개수
     total_count = await session.scalar(select(func.count(Quiz.id)))
@@ -572,17 +589,30 @@ async def get_quiz_dashboard(
         for q in recent_quizzes_result.scalars().all()
     ]
     
-    # 검증이 필요한 문제 (최근 생성된 문제 중 일부, 실제로는 검증 상태를 추적해야 함)
-    quizzes_needing_validation = recent_quizzes[:5]  # 임시로 최근 5개
+    # 검증 상태별 개수 조회
+    validation_status_counts = await validation_crud.get_validation_status_counts(session)
+    
+    # 검증이 필요한 문제 ID 목록 조회
+    quiz_ids_needing_validation = await validation_crud.get_quizzes_needing_validation(session)
+    
+    # 검증이 필요한 문제 상세 정보 조회
+    if quiz_ids_needing_validation:
+        quizzes_needing_validation_result = await session.execute(
+            select(Quiz)
+            .where(Quiz.id.in_(quiz_ids_needing_validation))
+            .order_by(Quiz.created_at.desc())
+        )
+        quizzes_needing_validation = [
+            quiz_schema.QuizResponse.model_validate(q)
+            for q in quizzes_needing_validation_result.scalars().all()
+        ]
+    else:
+        quizzes_needing_validation = []
     
     return quiz_schema.QuizDashboardResponse(
         total_quizzes=total_count or 0,
         quizzes_by_category=quizzes_by_category,
-        validation_status={
-            "validated": 0,  # 실제로는 검증 상태를 추적해야 함
-            "pending": len(quizzes_needing_validation),
-            "invalid": 0,
-        },
+        validation_status=validation_status_counts,
         recent_quizzes=recent_quizzes,
         quizzes_needing_validation=quizzes_needing_validation,
     )
