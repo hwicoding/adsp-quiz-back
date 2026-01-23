@@ -29,6 +29,14 @@ async def generate_quiz(
     return await quiz_service.generate_quiz(db, request)
 
 
+@router.get("/dashboard", response_model=quiz_schema.QuizDashboardResponse)
+async def get_quiz_dashboard(
+    db: AsyncSession = Depends(get_db),
+):
+    """관리자 대시보드 API: 문제 목록과 카테고리 매칭 상태 시각화"""
+    return await quiz_service.get_quiz_dashboard(db)
+
+
 @router.get("/{quiz_id}", response_model=quiz_schema.QuizResponse)
 async def get_quiz(
     quiz_id: int,
@@ -125,11 +133,3 @@ async def request_quiz_correction(
     # URL의 quiz_id를 사용 (request의 quiz_id는 무시)
     request.quiz_id = quiz_id
     return await quiz_service.request_quiz_correction(db, request)
-
-
-@router.get("/dashboard", response_model=quiz_schema.QuizDashboardResponse)
-async def get_quiz_dashboard(
-    db: AsyncSession = Depends(get_db),
-):
-    """관리자 대시보드 API: 문제 목록과 카테고리 매칭 상태 시각화"""
-    return await quiz_service.get_quiz_dashboard(db)
