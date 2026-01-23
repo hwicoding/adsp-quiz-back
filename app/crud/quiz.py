@@ -126,6 +126,66 @@ async def get_quiz_count_by_sub_topic_id(
     return total_count or 0
 
 
+def _calculate_question_similarity(q1: str, q2: str) -> float:
+    """문제 텍스트 유사도 계산 (토큰 없이, Jaccard 유사도 사용)
+    
+    Args:
+        q1: 첫 번째 문제 텍스트
+        q2: 두 번째 문제 텍스트
+    
+    Returns:
+        0.0 ~ 1.0 사이의 유사도 (1.0이 완전 동일)
+    """
+    # 공백 제거 및 소문자 변환 (한글은 변환 불필요)
+    words1 = set(q1.replace("?", "").replace(".", "").split())
+    words2 = set(q2.replace("?", "").replace(".", "").split())
+    
+    if not words1 or not words2:
+        return 0.0
+    
+    # Jaccard 유사도: 교집합 / 합집합
+    intersection = words1 & words2
+    union = words1 | words2
+    
+    return len(intersection) / len(union) if union else 0.0
+
+
+async def get_similar_quizzes_by_question(
+    session: AsyncSession,
+    sub_topic_id: int,
+    question: str,
+    similarity_threshold: float = 0.7,
+    limit: int = 10,
+) -> Sequence[Quiz]:
+    """세부항목별 유사 문제 조회 (토큰 없이)
+    
+    Args:
+        session: 데이터베이스 세션
+        sub_topic_id: 세부항목 ID
+        question: 비교할 문제 텍스트
+        similarity_threshold: 유사도 임계값 (기본값: 0.7)
+        limit: 최대 조회 개수
+    
+    Returns:
+        유사도가 임계값 이상인 문제 목록
+    """
+    # 세부항목의 모든 문제 조회
+    stmt = select(Quiz).where(Quiz.sub_topic_id == sub_topic_id)
+    result = await session.execute(stmt)
+    all_quizzes = result.scalars().all()
+    
+    # 유사도 계산하여 필터링
+    similar_quizzes = []
+    for quiz in all_quizzes:
+        similarity = _calculate_question_similarity(question, quiz.question)
+        if similarity >= similarity_threshold:
+            similar_quizzes.append(quiz)
+            if len(similar_quizzes) >= limit:
+                break
+    
+    return similar_quizzes
+
+
 async def update_quiz(
     session: AsyncSession,
     quiz_id: int,

@@ -129,7 +129,7 @@ async def generate_study_quizzes(
     session: AsyncSession,
     request: quiz_schema.StudyModeQuizCreateRequest,
 ) -> quiz_schema.StudyModeQuizListResponse:
-    """학습 모드 문제 생성 (10개 일괄 생성, 캐싱 지원, ADsP 전용)"""
+    """학습 모드 문제 생성 (10개 일괄 생성, 캐싱 지원, 적정선 기준, 변형 적용, ADsP 전용)"""
     # 세부항목 존재 확인
     sub_topic = await sub_topic_crud.get_sub_topic_with_core_content(session, request.sub_topic_id)
     if not sub_topic:
@@ -139,33 +139,88 @@ async def generate_study_quizzes(
     if not sub_topic.core_content:
         raise InvalidQuizRequestError(f"세부항목에 핵심 정보가 없습니다: {request.sub_topic_id}")
     
-    # 캐시된 문제 조회
-    cached_quizzes = await quiz_crud.get_quizzes_by_sub_topic_id(
+    # 세부항목별 전체 문제 개수 확인 (적정선 기준 판단용)
+    total_cached_count = await quiz_crud.get_quiz_count_by_sub_topic_id(
         session,
-        request.sub_topic_id,
-        request.quiz_count
+        request.sub_topic_id
     )
     
-    # 캐시된 문제가 충분한 경우
-    if len(cached_quizzes) >= request.quiz_count:
+    # 적정선 기준에 따른 캐시/신규 비율 결정
+    if total_cached_count >= 30:
+        # 충분한 문제 풀 → 새로 생성 안 함
+        cached_count = request.quiz_count
+        new_count = 0
         logger.info(
-            f"캐시된 문제 사용: sub_topic_id={request.sub_topic_id}, "
-            f"요청={request.quiz_count}, 캐시={len(cached_quizzes)}"
+            f"충분한 문제 풀: sub_topic_id={request.sub_topic_id}, "
+            f"캐시={total_cached_count}개, 새로 생성 안 함"
         )
-        quiz_responses = [
-            quiz_schema.QuizResponse.model_validate(q) for q in cached_quizzes[:request.quiz_count]
-        ]
-        return quiz_schema.StudyModeQuizListResponse(
-            quizzes=quiz_responses,
-            total_count=len(quiz_responses)
+    elif total_cached_count >= 20:
+        # 여유 있음 → 9:1 비율
+        cached_count = 9
+        new_count = 1
+        logger.info(
+            f"여유 있는 문제 풀: sub_topic_id={request.sub_topic_id}, "
+            f"캐시={total_cached_count}개, 비율=9:1"
+        )
+    elif total_cached_count >= 10:
+        # 적정 수준 → 8:2 비율
+        cached_count = 8
+        new_count = 2
+        logger.info(
+            f"적정 문제 풀: sub_topic_id={request.sub_topic_id}, "
+            f"캐시={total_cached_count}개, 비율=8:2"
+        )
+    else:
+        # 부족 → 부족한 개수만 새로 생성
+        cached_count = total_cached_count
+        new_count = request.quiz_count - total_cached_count
+        logger.info(
+            f"부족한 문제 풀: sub_topic_id={request.sub_topic_id}, "
+            f"캐시={total_cached_count}개, 신규 생성={new_count}개"
+        )
+    
+    # 캐시된 문제 조회 (유사 문제 제외 로직 포함)
+    cached_quizzes_raw = await quiz_crud.get_quizzes_by_sub_topic_id(
+        session,
+        request.sub_topic_id,
+        cached_count * 2  # 유사도 필터링을 위해 여유있게 조회
+    )
+    
+    # 유사 문제 제외 (캐시 조회 시)
+    cached_quizzes = []
+    selected_questions = []
+    for quiz in cached_quizzes_raw:
+        if len(cached_quizzes) >= cached_count:
+            break
+        
+        # 이미 선택한 문제와 유사도 체크
+        is_similar = False
+        for selected_q in selected_questions:
+            similarity = _calculate_question_similarity(quiz.question, selected_q)
+            if similarity >= 0.7:  # 70% 이상 유사하면 제외
+                is_similar = True
+                break
+        
+        if not is_similar:
+            cached_quizzes.append(quiz)
+            selected_questions.append(quiz.question)
+    
+    # 캐시된 문제가 부족한 경우 부족한 만큼만 사용
+    actual_cached_count = len(cached_quizzes)
+    if actual_cached_count < cached_count:
+        new_count += cached_count - actual_cached_count
+        logger.info(
+            f"캐시 부족으로 신규 생성 증가: sub_topic_id={request.sub_topic_id}, "
+            f"캐시={actual_cached_count}개, 신규={new_count}개"
         )
     
     # 부족한 문제 개수 계산
-    needed_count = request.quiz_count - len(cached_quizzes)
-    logger.info(
-        f"새 문제 생성 필요: sub_topic_id={request.sub_topic_id}, "
-        f"요청={request.quiz_count}, 캐시={len(cached_quizzes)}, 생성={needed_count}"
-    )
+    needed_count = new_count
+    if needed_count > 0:
+        logger.info(
+            f"새 문제 생성 필요: sub_topic_id={request.sub_topic_id}, "
+            f"요청={request.quiz_count}, 캐시={actual_cached_count}, 생성={needed_count}"
+        )
     
     # 새 문제 생성
     new_quizzes = []
@@ -199,6 +254,35 @@ async def generate_study_quizzes(
             )
             
             ai_response = await ai_service.generate_quiz(ai_request)
+            
+            # 유사 문제 체크 (토큰 없이)
+            similar_quizzes = await quiz_crud.get_similar_quizzes_by_question(
+                session,
+                request.sub_topic_id,
+                ai_response.question,
+                similarity_threshold=0.7,
+                limit=5
+            )
+            if similar_quizzes:
+                logger.info(
+                    f"유사 문제 발견으로 스킵: sub_topic_id={request.sub_topic_id}, "
+                    f"유사 문제 개수={len(similar_quizzes)}, "
+                    f"문제={ai_response.question[:50]}..."
+                )
+                # 유사 문제가 있으면 다시 생성 시도 (최대 3회)
+                if i < needed_count - 1:
+                    continue
+                else:
+                    # 마지막 시도면 유사 문제 중 하나를 변형하여 사용
+                    similar_quiz = similar_quizzes[0]
+                    quiz_response = quiz_schema.QuizResponse.model_validate(similar_quiz)
+                    quiz_response = quiz_variation.vary_quiz(quiz_response)
+                    new_quizzes.append(similar_quiz)
+                    logger.info(
+                        f"유사 문제 변형하여 사용: quiz_id={similar_quiz.id}, "
+                        f"sub_topic_id={request.sub_topic_id}"
+                    )
+                    continue
             
             # 자동 검증: 선택적 + 샘플링 (토큰 절약)
             if settings.auto_validate_quiz and random.random() < settings.auto_validate_sample_rate:
@@ -284,16 +368,31 @@ async def generate_study_quizzes(
     # 캐시된 문제 + 새로 생성한 문제 합치기
     all_quizzes = list(cached_quizzes) + new_quizzes
     
-    # 요청한 개수만큼만 반환 (validation_status 포함)
-    quiz_responses = await _create_quiz_responses_with_status(
-        session, 
-        all_quizzes[:request.quiz_count]
-    )
+    # 캐시된 문제에 변형 적용 (토큰 없이)
+    quiz_responses = []
+    for quiz in all_quizzes[:request.quiz_count]:
+        quiz_response = quiz_schema.QuizResponse.model_validate(quiz)
+        
+        # 70% 확률로 변형, 30% 확률로 원본 그대로
+        if random.random() < 0.7:
+            quiz_response = quiz_variation.vary_quiz(quiz_response)
+            logger.debug(
+                f"캐시 문제 변형 적용: quiz_id={quiz.id}, "
+                f"sub_topic_id={request.sub_topic_id}"
+            )
+        
+        # validation_status 포함
+        validation_statuses = await validation_crud.get_latest_validation_statuses(session, [quiz.id])
+        validation_status = validation_statuses.get(quiz.id, "pending")
+        
+        quiz_dict = quiz_response.model_dump()
+        quiz_dict["validation_status"] = validation_status
+        quiz_responses.append(quiz_schema.QuizResponse.model_validate(quiz_dict))
     
     logger.info(
         f"학습 모드 문제 생성 완료: sub_topic_id={request.sub_topic_id}, "
         f"요청={request.quiz_count}, 반환={len(quiz_responses)} "
-        f"(캐시={len(cached_quizzes)}, 신규={len(new_quizzes)})"
+        f"(캐시={actual_cached_count}, 신규={len(new_quizzes)}, 변형 적용)"
     )
     
     return quiz_schema.StudyModeQuizListResponse(
@@ -726,6 +825,30 @@ async def get_quiz_dashboard(
         recent_quizzes=recent_quizzes,
         quizzes_needing_validation=quizzes_needing_validation,
     )
+
+
+def _calculate_question_similarity(q1: str, q2: str) -> float:
+    """문제 텍스트 유사도 계산 (토큰 없이, Jaccard 유사도 사용)
+    
+    Args:
+        q1: 첫 번째 문제 텍스트
+        q2: 두 번째 문제 텍스트
+    
+    Returns:
+        0.0 ~ 1.0 사이의 유사도 (1.0이 완전 동일)
+    """
+    # 공백 제거 및 소문자 변환 (한글은 변환 불필요)
+    words1 = set(q1.replace("?", "").replace(".", "").split())
+    words2 = set(q2.replace("?", "").replace(".", "").split())
+    
+    if not words1 or not words2:
+        return 0.0
+    
+    # Jaccard 유사도: 교집합 / 합집합
+    intersection = words1 & words2
+    union = words1 | words2
+    
+    return len(intersection) / len(union) if union else 0.0
 
 
 def _simple_keyword_check(question: str, category: str) -> bool:
