@@ -429,7 +429,7 @@ async def validate_quiz(
     """문제 검증: Gemini로 생성된 문제가 카테고리에 맞는지 재검증"""
     import json
     
-    quiz = await quiz_crud.get_quiz_by_id(session, quiz_id)
+    quiz = await quiz_crud.get_quiz_by_id(session, quiz_id, load_relationships=True)
     if not quiz:
         raise QuizNotFoundError(quiz_id)
     

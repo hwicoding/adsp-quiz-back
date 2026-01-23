@@ -3,14 +3,35 @@ from typing import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.quiz import Quiz
+from app.models.sub_topic import SubTopic
+from app.models.main_topic import MainTopic
 from app.schemas.ai import AIQuizGenerationResponse
 
 
-async def get_quiz_by_id(session: AsyncSession, quiz_id: int) -> Quiz | None:
-    """ID로 문제 조회"""
-    result = await session.execute(select(Quiz).where(Quiz.id == quiz_id))
+async def get_quiz_by_id(
+    session: AsyncSession, 
+    quiz_id: int,
+    load_relationships: bool = False,
+) -> Quiz | None:
+    """ID로 문제 조회
+    
+    Args:
+        session: 데이터베이스 세션
+        quiz_id: 문제 ID
+        load_relationships: 관계(sub_topic, subject)를 eager load할지 여부
+    """
+    stmt = select(Quiz).where(Quiz.id == quiz_id)
+    
+    if load_relationships:
+        stmt = stmt.options(
+            joinedload(Quiz.sub_topic).joinedload(SubTopic.main_topic).joinedload(MainTopic.subject),
+            joinedload(Quiz.subject),
+        )
+    
+    result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
 
