@@ -267,8 +267,8 @@ async def generate_study_quizzes(
         retry_count = 0
         quiz_created = False
         
-        while not quiz_created and retry_count <= MAX_SIMILARITY_RETRIES:
-            try:
+        try:
+            while not quiz_created and retry_count <= MAX_SIMILARITY_RETRIES:
                 # 핵심 정보를 기반으로 문제 생성 (모든 핵심 정보 종합 활용)
                 # 구분자로 분리된 모든 핵심 정보를 조회
                 core_contents = sub_topic_crud.parse_core_contents(sub_topic.core_content, sub_topic.source_type)

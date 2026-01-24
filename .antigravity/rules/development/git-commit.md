@@ -64,16 +64,12 @@
 
 ## 한글 커밋 메시지 작성 (절대 필수)
 - **한글이 포함된 커밋 메시지는 절대 `git commit -m "..."` 직접 사용 금지**
+- **Windows 환경 주의**: PowerShell 등 터미널에서 문자열을 인자로 전달 시 인코딩이 깨질 수 있음
 - 반드시 다음 절차 준수:
-  1. **우선 `scripts/tools/git_commit_with_message.py` 스크립트 사용** (권장)
-     - 사용법: `python scripts/tools/git_commit_with_message.py "커밋 메시지"`
-     - 스크립트가 자동으로 UTF-8 파일 생성 및 `git commit -F` 실행
-  2. 스크립트 사용 불가 시 별도 Python 스크립트 파일 생성 (`# -*- coding: utf-8 -*-` 헤더 필수)
-  3. 커밋 메시지를 UTF-8로 파일에 저장 (`open(..., encoding='utf-8', newline='\n')`)
-  4. `git commit -F <파일경로>` 또는 `git commit --amend -F <파일경로>` 사용
-  5. 스크립트 및 임시 파일은 커밋 후 즉시 삭제
-  6. **커밋 후 반드시 `git log -1 --pretty=format:"%s"`로 한글 정상 표시 확인**
-  7. 깨진 문자(諛, 異, ?? 등) 감지 시 즉시 `git commit --amend -F <파일경로>`로 재작업
+  1. **스크립트 방식**: `scripts/tools/git_commit_with_message.py` 사용 시 터미널 코드 페이지(`chcp 65001`)를 반드시 UTF-8로 변경 후 실행
+  2. **바이트 방식 (권장)**: 인코딩 이슈가 지속될 경우, Python의 `write_bytes()`를 사용하여 직접 UTF-8 바이트를 파일에 쓰고 `git commit -F` 실행
+  3. **검증 필수**: 커밋 후 `chcp 65001` 상태에서 `git log -1`을 실행하여 한글이 올바르게 표시되는지 육안으로 확인
+  4. **재작업**: 깨진 문자 감지 시 즉시 `git commit --amend`로 수정
 - 예시 스크립트 패턴:
   ```python
   # -*- coding: utf-8 -*-
@@ -105,9 +101,10 @@
 
 ## AI 작업 체크리스트 (커밋 메시지 제안 시 - 반드시 순서대로 수행)
 1. ✅ **규칙 파일 읽기**: `.antigravity/rules/development/git-commit.md` 파일 읽기 완료
-2. ✅ **날짜 계산**: PowerShell 명령어로 현재 날짜 `yyMMdd` 형식 계산 (`Get-Date -Format 'yyMMdd'`)
-3. ✅ **형식 검증**: 제안할 메시지가 `yyMMdd > back-end > fast-api > 한 줄 설명` 형식인지 확인
-4. ✅ **금지 형식 검증**: 
+2. ✅ **문법 검증**: 수정된 Python 파일에 대해 `python -m py_compile` 실행 및 통과 확인 (Python 규칙 참조)
+3. ✅ **날짜 계산**: PowerShell 명령어로 현재 날짜 `yyMMdd` 형식 계산 (`Get-Date -Format 'yyMMdd'`)
+4. ✅ **형식 검증**: 제안할 메시지가 `yyMMdd > back-end > fast-api > 한 줄 설명` 형식인지 확인
+5. ✅ **금지 형식 검증**: 
    - `feat:`, `fix:`, `chore:` 등 Conventional Commits 형식 미사용 확인
    - `[FEAT]`, `[FIX]` 등 대괄호 형식 미사용 확인
    - `back-end` 대신 다른 문자열 사용하지 않았는지 확인
